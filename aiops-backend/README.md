@@ -60,8 +60,35 @@ mvn spring-boot:run -pl aiops-web -am
 
 - `aiops.security.seed`：Agent token 前缀校验种子
 - `aiops.cache.*`：缓存参数
+- `spring.data.redis.*`：Redis 二级缓存连接配置
 - `aiops.llm.*`：Provider 开关，默认使用 `Ollama` 模拟 provider
 - `aiops.command.*`：允许/禁止命令列表
+
+## 双层缓存
+
+后端当前已经接入 `Caffeine + Redis` 双层缓存：
+
+- 一级缓存：Caffeine，本地热点数据快速命中
+- 二级缓存：Redis，多实例共享缓存数据
+- Redis 不可用时自动降级为 Caffeine-only，不阻塞主流程
+
+### 启动 Redis（可选但推荐）
+
+如果本地已经安装 Redis，可直接启动；也可以使用 Docker：
+
+```bash
+docker run -d --name aiops-redis -p 6379:6379 redis:7
+```
+
+### 环境变量示例
+
+```bash
+SPRING_DATA_REDIS_HOST=localhost
+SPRING_DATA_REDIS_PORT=6379
+AIOPS_CACHE_REDIS_ENABLED=true
+```
+
+当 Redis 未启动时，日志中会看到缓存降级 warning，这是预期行为。
 
 ## API 示例
 

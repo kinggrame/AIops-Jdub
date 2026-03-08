@@ -16,6 +16,16 @@ cd aiops-backend
 mvn spring-boot:run -pl aiops-web -am
 ```
 
+## Redis（推荐）
+
+为了启用 `Caffeine + Redis` 双层缓存，建议先启动 Redis：
+
+```bash
+docker run -d --name aiops-redis -p 6379:6379 redis:7
+```
+
+如果 Redis 未启动，后端仍可运行，但会自动回退为本地缓存。
+
 ## 提供能力
 
 - HTTP API：`http://localhost:8080/api/v1`
@@ -48,3 +58,4 @@ mvn spring-boot:run -pl aiops-web -am
 2. 打开告警页，确认高负载告警出现
 3. 打开 Agent 本地面板，确认最近事件更新
 4. 查看命令结果页或仪表盘，确认命令执行结果回传
+5. 如已启动 Redis，观察后端日志中不再出现 Redis fallback warning

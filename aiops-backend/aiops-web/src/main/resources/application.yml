@@ -1,6 +1,11 @@
 spring:
   application:
     name: aiops-backend
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 3s
 
 management:
   endpoints:
@@ -21,6 +26,9 @@ aiops:
   cache:
     maximum-size: 1000
     expire-after-seconds: 600
+    redis:
+      enabled: ${AIOPS_CACHE_REDIS_ENABLED:true}
+      key-prefix: "aiops:"
   llm:
     open-ai-enabled: false
     anthropic-enabled: false
