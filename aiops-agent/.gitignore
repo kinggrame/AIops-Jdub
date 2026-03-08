@@ -1,0 +1,30 @@
+# Build outputs
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go
+vendor/
+coverage.out
+*.test
+
+# Logs
+logs/
+*.log
+
+# OS / Editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+*.local
+config.local.yaml

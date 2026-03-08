@@ -1,0 +1,98 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { App, Button, Card, Drawer, Form, Input, Select, Space, Table, Tag, Typography } from 'antd'
+import { useState } from 'react'
+import { fetchAgents, reportAgent, registerAgent } from '../../api/aiops'
+import { AsyncState } from '../../components/common/AsyncState'
+import { PageHeader } from '../../components/common/PageHeader'
+import { formatTime, getMetricValue } from '../../utils/format'
+
+export default function AgentsPage() {
+  const { message } = App.useApp()
+  const queryClient = useQueryClient()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const { data: agents = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ['agents'], queryFn: fetchAgents })
+
+  const registerMutation = useMutation({
+    mutationFn: registerAgent,
+    onSuccess: () => {
+      message.success('Agent 注册成功')
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+    },
+    onError: (err) => message.error(err instanceof Error ? err.message : '注册失败'),
+  })
+
+  const reportMutation = useMutation({
+    mutationFn: reportAgent,
+    onSuccess: () => {
+      message.success('模拟上报已发送')
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      queryClient.invalidateQueries({ queryKey: ['command-results'] })
+    },
+    onError: (err) => message.error(err instanceof Error ? err.message : '上报失败'),
+  })
+
+  return (
+    <Space direction="vertical" size={24} style={{ width: '100%' }}>
+      <PageHeader title="客户端管理" description="注册新 Agent、查看最近心跳，并快速触发一次高负载模拟上报。" badge={`${agents.length} Agents`} />
+      <Space>
+        <Button type="primary" onClick={() => setDrawerOpen(true)}>注册 Agent</Button>
+      </Space>
+      <Card className="glass-card">
+        <AsyncState loading={isLoading} error={isError ? error : undefined} onRetry={refetch} empty={!agents.length} emptyDescription="还没有注册任何 Agent。">
+          <Table
+            rowKey="agentId"
+            dataSource={agents}
+            pagination={false}
+            columns={[
+              { title: '主机名', dataIndex: 'hostname' },
+              { title: 'IP', dataIndex: 'ip' },
+              { title: '能力', dataIndex: 'capabilities', render: (value: string[]) => value.map((item) => <Tag key={item}>{item}</Tag>) },
+              { title: 'CPU', render: (_, item) => `${getMetricValue(item.latestMetrics, 'cpu', 'usage') ?? 0}%` },
+              { title: '内存', render: (_, item) => `${getMetricValue(item.latestMetrics, 'memory', 'usage') ?? 0}%` },
+              { title: '最后心跳', dataIndex: 'lastSeen', render: formatTime },
+              {
+                title: '操作',
+                render: (_, item) => (
+                  <Button
+                    loading={reportMutation.isPending}
+                    onClick={() => reportMutation.mutate({
+                      agentId: item.agentId,
+                      hostname: item.hostname,
+                      metrics: { cpu: { usage: 95 }, memory: { usage: 88 } },
+                      events: [{ type: 'threshold', metric: 'cpu.usage', value: 95, target: 'ai' }],
+                    })}
+                  >
+                    模拟高负载上报
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        </AsyncState>
+      </Card>
+
+      <Drawer title="注册 Agent" open={drawerOpen} onClose={() => setDrawerOpen(false)} destroyOnClose>
+        <Form
+          layout="vertical"
+          initialValues={{ hostname: 'server-001', ip: '10.0.0.1', token: 'aiops-mvp-seed-demo-token', capabilities: ['cpu', 'memory', 'disk'] }}
+          onFinish={(values) => {
+            registerMutation.mutate(values)
+            setDrawerOpen(false)
+          }}
+        >
+          <Form.Item label="主机名" name="hostname" rules={[{ required: true, message: '请输入主机名' }]}><Input /></Form.Item>
+          <Form.Item label="IP" name="ip" rules={[{ required: true, message: '请输入 IP' }]}><Input /></Form.Item>
+          <Form.Item label="Token" name="token" rules={[{ required: true, message: '请输入 Token' }]}><Input /></Form.Item>
+          <Form.Item label="能力" name="capabilities" rules={[{ required: true, message: '请至少选择一个能力' }]}>
+            <Select mode="tags" options={[{ value: 'cpu' }, { value: 'memory' }, { value: 'disk' }]} />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={registerMutation.isPending}>提交</Button>
+        </Form>
+        <Typography.Paragraph style={{ marginTop: 16 }}>
+          注册后可在列表中直接发起一次模拟上报，观察后端闭环状态变化。
+        </Typography.Paragraph>
+      </Drawer>
+    </Space>
+  )
+}

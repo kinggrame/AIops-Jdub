@@ -1,0 +1,31 @@
+server:
+  url: "http://localhost:8080"
+  token: "${AIOPS_TOKEN}"
+  host: "server-001"
+  ip: "127.0.0.1"
+
+webui:
+  enable: true
+  port: 8089
+
+collection:
+  interval: 15
+
+triggers:
+  - name: cpu_high
+    metric: cpu.usage
+    operator: ">"
+    value: 90
+    target: ai
+
+  - name: memory_high
+    metric: memory.usage
+    operator: ">"
+    value: 85
+    target: ai
+
+commands:
+  allowed:
+    - restart_service
+    - get_logs
+    - clear_cache

@@ -1,0 +1,27 @@
+# Maven / Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+logs/
+*.log
+
+# OS / Editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Test artifacts
+surefire-reports/
+.mvn/
