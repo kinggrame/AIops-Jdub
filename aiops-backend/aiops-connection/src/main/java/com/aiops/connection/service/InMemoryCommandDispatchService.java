@@ -3,6 +3,7 @@ package com.aiops.connection.service;
 import com.aiops.common.exception.BusinessException;
 import com.aiops.connection.model.CommandEnvelope;
 import com.aiops.connection.model.CommandResult;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
+@ConditionalOnMissingBean(CommandDispatchService.class)
 public class InMemoryCommandDispatchService implements CommandDispatchService {
 
     private final AgentRegistryService agentRegistryService;

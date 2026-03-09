@@ -31,6 +31,12 @@ cd aiops-backend
 mvn spring-boot:run -pl aiops-web -am
 ```
 
+Windows 下一键启动前后端：
+
+```powershell
+./start-demo.ps1
+```
+
 ### 2. 启动前端
 
 ```bash
@@ -44,11 +50,13 @@ npm run dev
 Windows:
 
 ```bash
-set AIOPS_TOKEN=aiops-mvp-seed-demo-token
+set AIOPS_BOOTSTRAP_TOKEN=aiops-mvp-seed-demo-token
 cd aiops-agent
 go mod tidy
 go run ./cmd -c config.yaml
 ```
+
+如果 backend 只运行在本机，而 agent 跑在公网服务器上，则还需要给 backend 提供一个公网可达地址。当前 MVP 已支持在 backend 生命周期内临时托管内网穿透，但默认关闭，且仅建议演示时开启。
 
 ## 默认访问地址
 

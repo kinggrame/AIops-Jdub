@@ -13,6 +13,8 @@ import (
 	"aiops-agent/internal/collector"
 	"aiops-agent/internal/config"
 	"aiops-agent/internal/executor"
+	"aiops-agent/internal/logwatch"
+	"aiops-agent/internal/security"
 	"aiops-agent/internal/sender"
 	"aiops-agent/internal/trigger"
 	"aiops-agent/internal/webui"
@@ -30,21 +32,51 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	httpClient := sender.NewHTTPClient(cfg.Server.URL, cfg.Server.Token)
+	auth, err := security.LoadAuthorization()
+	if err != nil {
+		log.Printf("load authorization file failed, fallback to bootstrap token: %v", err)
+	}
+	runtimeToken := cfg.Server.BootstrapToken
+	agentID := ""
+	if auth != nil && auth.ServerURL == cfg.Server.URL && auth.Token != "" {
+		runtimeToken = auth.Token
+		agentID = auth.AgentID
+	}
+
+	httpClient := sender.NewHTTPClient(cfg.Server.URL, runtimeToken)
 	collectorSvc := collector.NewSystemCollector()
 	triggerEngine := trigger.New(cfg.Triggers)
 	exec := executor.New(cfg)
+	logWatcher := logwatch.New(cfg.Logwatch)
 	reportBuffer := cache.New[map[string]any]()
 	eventBuffer := cache.New[trigger.Event]()
 
-	agentID, err := httpClient.Register(ctx, sender.RegisterRequest{
+	registeredAgentID, issuedToken, err := httpClient.Register(ctx, sender.RegisterRequest{
 		Hostname:     cfg.Server.Host,
 		IP:           cfg.Server.IP,
-		Token:        cfg.Server.Token,
+		Token:        runtimeToken,
 		Capabilities: []string{"cpu", "memory", "disk", "load", "network", "process"},
 	})
 	if err != nil {
 		log.Printf("register failed, agent will continue in offline mode: %v", err)
+	}
+	if registeredAgentID != "" {
+		agentID = registeredAgentID
+	}
+	if issuedToken != "" {
+		runtimeToken = issuedToken
+		cfg.Server.Token = issuedToken
+		httpClient = sender.NewHTTPClient(cfg.Server.URL, runtimeToken)
+		if err := security.SaveAuthorization(security.Authorization{
+			AgentID:   agentID,
+			Token:     issuedToken,
+			ServerURL: cfg.Server.URL,
+			Hostname:  cfg.Server.Host,
+			IP:        cfg.Server.IP,
+			Version:   1,
+		}); err != nil {
+			log.Printf("save authorization file failed: %v", err)
+		}
 	}
 
 	state := &webui.State{
@@ -59,7 +91,11 @@ func main() {
 		log.Printf("web ui started on http://localhost:%d", cfg.WebUI.Port)
 	}
 
-	wsClient := sender.NewWSClient(cfg.Server.URL, agentID, exec, func(result executor.Result) {
+	trustedServer := ""
+	if len(cfg.Server.TrustedServers) > 0 {
+		trustedServer = cfg.Server.TrustedServers[0]
+	}
+	wsClient := sender.NewWSClient(cfg.Server.URL, agentID, runtimeToken, trustedServer, exec, func(result executor.Result) {
 		log.Printf("command result: %+v", result)
 		if err := httpClient.ReportCommandResult(ctx, sender.CommandResultRequest{
 			CommandID: result.CommandID,
@@ -87,6 +123,17 @@ func main() {
 			eventBuffer.Push(event)
 		}
 
+		logs := logWatcher.Collect()
+		if len(logs) > 0 && agentID != "" {
+			if err := httpClient.ReportLogs(ctx, sender.LogIngestionRequest{
+				AgentID:  agentID,
+				Hostname: cfg.Server.Host,
+				Logs:     logs,
+			}); err != nil {
+				log.Printf("log report failed: %v", err)
+			}
+		}
+
 		payload := sender.ReportRequest{
 			AgentID:  agentID,
 			Hostname: cfg.Server.Host,
@@ -111,7 +158,7 @@ func main() {
 			reportBuffer.Push(map[string]any{"reason": err.Error(), "payload": payload})
 			return
 		}
-		log.Printf("report sent: cpu=%.1f memory=%.1f events=%d", snapshot.CPU["usage"], snapshot.Memory["usage"], len(events))
+		log.Printf("report sent: cpu=%.1f memory=%.1f events=%d logs=%d", snapshot.CPU["usage"], snapshot.Memory["usage"], len(events), len(logs))
 	}
 
 	run()

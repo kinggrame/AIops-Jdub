@@ -3,6 +3,7 @@ package sender
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,13 +18,15 @@ import (
 type WSClient struct {
 	baseURL   string
 	agentID   string
+	token     string
+	trusted   string
 	executor  *executor.Executor
 	onResult  func(executor.Result)
 	connected bool
 }
 
-func NewWSClient(baseURL, agentID string, exec *executor.Executor, onResult func(executor.Result)) *WSClient {
-	return &WSClient{baseURL: baseURL, agentID: agentID, executor: exec, onResult: onResult}
+func NewWSClient(baseURL, agentID, token, trusted string, exec *executor.Executor, onResult func(executor.Result)) *WSClient {
+	return &WSClient{baseURL: baseURL, agentID: agentID, token: token, trusted: trusted, executor: exec, onResult: onResult}
 }
 
 func (c *WSClient) Start(ctx context.Context) {
@@ -46,6 +49,9 @@ func (c *WSClient) Connected() bool {
 }
 
 func (c *WSClient) connectOnce(ctx context.Context) error {
+	if c.trusted == "" {
+		return fmt.Errorf("trusted server is required")
+	}
 	if strings.HasPrefix(strings.ToLower(c.baseURL), "https://") {
 		wsURL := strings.Replace(strings.TrimRight(c.baseURL, "/"), "https://", "wss://", 1) + "/ws/agent/" + url.PathEscape(c.agentID)
 		return c.runDial(ctx, wsURL)
@@ -55,7 +61,11 @@ func (c *WSClient) connectOnce(ctx context.Context) error {
 }
 
 func (c *WSClient) runDial(ctx context.Context, wsURL string) error {
-	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{}})
+	headers := http.Header{}
+	if strings.TrimSpace(c.token) != "" {
+		headers.Set("Authorization", "Bearer "+strings.TrimSpace(c.token))
+	}
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
 	if err != nil {
 		c.connected = false
 		return err

@@ -32,15 +32,17 @@ class AgentFlowIntegrationTests {
                 }
                 """;
 
-        String agentId = mockMvc.perform(post("/api/v1/agent/register")
+        String registerResponse = mockMvc.perform(post("/api/v1/agent/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.hostname", is("server-001")))
                 .andReturn()
                 .getResponse()
-                .getContentAsString()
-                .replaceAll("(?s).*\"agentId\":\"([^\"]+)\".*", "$1");
+                .getContentAsString();
+
+        String agentId = registerResponse.replaceAll("(?s).*\"agentId\":\"([^\"]+)\".*", "$1");
+        String issuedToken = registerResponse.replaceAll("(?s).*\"token\":\"([^\"]+)\".*", "$1");
 
         String reportBody = """
                 {
@@ -57,6 +59,7 @@ class AgentFlowIntegrationTests {
                 """.formatted(agentId);
 
         mockMvc.perform(post("/api/v1/agent/report")
+                        .header("Authorization", "Bearer " + issuedToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody))
                 .andExpect(status().isOk())

@@ -1,15 +1,25 @@
-import { useQuery } from '@tanstack/react-query'
-import { App, Button, Card, Col, Empty, Form, Input, Row, Select, Space, Tag, Typography } from 'antd'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { App, Button, Card, Col, Empty, Form, Input, List, Row, Select, Space, Tag, Typography } from 'antd'
 import { useState } from 'react'
-import { fetchAgents } from '../../api/aiops'
+import { decideApproval, fetchAgents, fetchApprovals } from '../../api/aiops'
 import { AsyncState } from '../../components/common/AsyncState'
 import { PageHeader } from '../../components/common/PageHeader'
 import { useChat } from '../../hooks/useChat'
 
 export default function AgentChatPage() {
   const { message } = App.useApp()
+  const queryClient = useQueryClient()
   const { data: agents = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ['agents'], queryFn: fetchAgents })
+  const { data: approvals = [] } = useQuery({ queryKey: ['approvals'], queryFn: fetchApprovals })
   const chatMutation = useChat()
+  const approvalMutation = useMutation({
+    mutationFn: decideApproval,
+    onSuccess: () => {
+      message.success('审批已提交')
+      queryClient.invalidateQueries({ queryKey: ['approvals'] })
+      queryClient.invalidateQueries({ queryKey: ['command-results'] })
+    },
+  })
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; badge?: string }>>([
     { role: 'assistant', content: '你好，我已经接入分析、知识检索与命令建议链路。' },
   ])
@@ -36,12 +46,32 @@ export default function AgentChatPage() {
               </Space>
             </AsyncState>
           </Card>
+          <Card className="glass-card" title="多 Agent 执行阶段" style={{ marginTop: 16 }}>
+            <AsyncState empty={!approvals.length} emptyDescription="执行审批队列为空。">
+              <List
+                dataSource={approvals}
+                renderItem={(item) => (
+                  <List.Item
+                    actions={item.status === 'pending' ? [
+                      <Button key="approve" type="primary" loading={approvalMutation.isPending} onClick={() => approvalMutation.mutate({ approvalId: item.approvalId, reviewer: 'admin', decision: 'approve' })}>批准</Button>,
+                      <Button key="reject" danger loading={approvalMutation.isPending} onClick={() => approvalMutation.mutate({ approvalId: item.approvalId, reviewer: 'admin', decision: 'reject' })}>拒绝</Button>,
+                    ] : []}
+                  >
+                    <List.Item.Meta
+                      title={<Space><Tag color={item.status === 'approved' ? 'green' : item.status === 'rejected' ? 'red' : 'gold'}>{item.status}</Tag><span>{item.command}</span></Space>}
+                      description={`Agent=${item.agentId} · reason=${item.reason}`}
+                    />
+                  </List.Item>
+                )}
+              />
+            </AsyncState>
+          </Card>
         </Col>
         <Col xs={24} xl={8}>
           <Card className="glass-card" title="发起分析">
             <Form
               layout="vertical"
-              initialValues={{ agentType: 'analysis', message: 'cpu usage is high', targetAgent: agents[0]?.agentId }}
+              initialValues={{ agentType: 'execute', message: 'cpu usage is high', targetAgent: agents[0]?.agentId }}
               onFinish={async (values) => {
                 if (!values.targetAgent) {
                   message.warning('请先选择目标服务器')
@@ -55,10 +85,14 @@ export default function AgentChatPage() {
                   events: [],
                 })
                 setMessages((current) => [...current, { role: 'assistant', content: result.reply, badge: result.provider }])
+                result.stages.forEach((stage) => {
+                  setMessages((current) => [...current, { role: 'assistant', content: String(stage.output), badge: stage.agent }])
+                })
+                queryClient.invalidateQueries({ queryKey: ['approvals'] })
                 message.success('已收到分析结果')
               }}
             >
-              <Form.Item label="Agent 类型" name="agentType" rules={[{ required: true, message: '请选择 Agent 类型' }]}><Select options={[{ value: 'data' }, { value: 'analysis' }, { value: 'report' }]} /></Form.Item>
+              <Form.Item label="Agent 类型" name="agentType" rules={[{ required: true, message: '请选择 Agent 类型' }]}><Select options={[{ value: 'summarize' }, { value: 'plan' }, { value: 'execute' }, { value: 'report' }]} /></Form.Item>
               <Form.Item label="目标服务器" name="targetAgent" rules={[{ required: true, message: '请选择目标服务器' }]}>
                 <Select notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可选 Agent" />} options={agents.map((agent) => ({ value: agent.agentId, label: agent.hostname }))} />
               </Form.Item>

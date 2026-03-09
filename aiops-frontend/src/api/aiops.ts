@@ -1,6 +1,7 @@
 import apiClient from './index'
 import type {
   AgentInfo,
+  ApprovalItem,
   AlertItem,
   ApiEnvelope,
   ChatRequest,
@@ -9,6 +10,8 @@ import type {
   KnowledgeItem,
   LogEntry,
   ReportResult,
+  TunnelStatus,
+  AgentInstallPreview,
 } from '../types'
 
 export async function fetchAgents() {
@@ -41,6 +44,16 @@ export async function sendAgentChat(payload: ChatRequest) {
   return response.data.data
 }
 
+export async function fetchApprovals() {
+  const response = await apiClient.get<ApiEnvelope<ApprovalItem[]>>('/approvals')
+  return response.data.data
+}
+
+export async function decideApproval(payload: { approvalId: string; reviewer: string; decision: 'approve' | 'reject' }) {
+  const response = await apiClient.post<ApiEnvelope<unknown>>('/approvals/decision', payload)
+  return response.data.data
+}
+
 export async function createAlert(payload: Omit<AlertItem, 'id' | 'createdAt'>) {
   const response = await apiClient.post<ApiEnvelope<AlertItem>>('/alerts', payload)
   return response.data.data
@@ -63,5 +76,15 @@ export async function reportAgent(payload: {
   events: Array<Record<string, unknown>>
 }) {
   const response = await apiClient.post<ApiEnvelope<ReportResult>>('/agent/report', payload)
+  return response.data.data
+}
+
+export async function fetchTunnelStatus() {
+  const response = await apiClient.get<ApiEnvelope<TunnelStatus>>('/metrics/tunnel')
+  return response.data.data
+}
+
+export async function fetchAgentInstallPreview() {
+  const response = await apiClient.get<ApiEnvelope<AgentInstallPreview>>('/metrics/tunnel/install-preview')
   return response.data.data
 }

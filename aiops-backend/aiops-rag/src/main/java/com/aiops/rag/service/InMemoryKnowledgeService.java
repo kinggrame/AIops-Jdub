@@ -2,6 +2,7 @@ package com.aiops.rag.service;
 
 import com.aiops.cache.service.CacheService;
 import com.aiops.rag.entity.KnowledgeDocument;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -12,6 +13,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@ConditionalOnMissingBean(KnowledgeService.class)
 public class InMemoryKnowledgeService implements KnowledgeService {
 
     private final CacheService cacheService;

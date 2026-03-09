@@ -8,7 +8,7 @@ import java.util.List;
 @ConfigurationProperties(prefix = "aiops.command")
 public class CommandProperties {
 
-    private List<String> allowed = new ArrayList<>(List.of("restart_service", "get_logs", "clear_cache", "scale_deployment"));
+    private List<String> allowed = new ArrayList<>(List.of("top", "ps aux", "journalctl -u nginx -n 200", "tail -n 200 /var/log/nginx/error.log", "systemctl status nginx"));
     private List<String> forbidden = new ArrayList<>(List.of("rm -rf", "shutdown", "init 6"));
 
     public List<String> getAllowed() {

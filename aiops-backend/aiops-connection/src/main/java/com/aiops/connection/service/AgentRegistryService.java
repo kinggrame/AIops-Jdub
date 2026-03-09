@@ -44,6 +44,8 @@ public interface AgentRegistryService {
 
     Optional<AgentInfo> findByHostname(String hostname);
 
+    Optional<AgentInfo> authenticate(String agentId, String token);
+
     List<AgentInfo> listAgents();
 
     /**

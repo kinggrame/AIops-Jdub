@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -30,6 +31,14 @@ func (e *Executor) Execute(commandID, action string, params map[string]any) Resu
 		return Result{CommandID: commandID, Status: "rejected", Output: "dangerous command blocked"}
 	}
 
-	output := fmt.Sprintf("executed %s with params=%v at %s", action, params, time.Now().Format(time.RFC3339))
-	return Result{CommandID: commandID, Status: "success", Output: output}
+	parts := strings.Fields(action)
+	if len(parts) == 0 {
+		return Result{CommandID: commandID, Status: "rejected", Output: "empty command"}
+	}
+	cmd := exec.Command(parts[0], parts[1:]...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return Result{CommandID: commandID, Status: "failed", Output: fmt.Sprintf("%s | error=%v", strings.TrimSpace(string(output)), err)}
+	}
+	return Result{CommandID: commandID, Status: "success", Output: strings.TrimSpace(string(output)) + " @ " + time.Now().Format(time.RFC3339)}
 }
