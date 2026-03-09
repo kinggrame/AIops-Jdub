@@ -40,10 +40,15 @@ export interface KnowledgeItem {
 
 export interface ChatRequest {
   conversationId?: string;
-  agentType: 'data' | 'analysis' | 'report';
+  agentType: 'data' | 'analysis' | 'report' | 'summarize' | 'plan' | 'execute';
   message: string;
   metrics?: Record<string, unknown>;
   events?: Array<Record<string, unknown>>;
+}
+
+export interface AgentStage {
+  agent: 'SUMMARIZE' | 'PLAN' | 'EXECUTE' | 'REPORT';
+  output: unknown;
 }
 
 export interface ChatResponse {
@@ -52,6 +57,19 @@ export interface ChatResponse {
   provider: string;
   reply: string;
   details: Record<string, unknown>;
+  stages: AgentStage[];
+}
+
+export interface ApprovalItem {
+  approvalId: string;
+  agentId: string;
+  command: string;
+  params: Record<string, unknown>;
+  reason: string;
+  status: string;
+  reviewer?: string | null;
+  createdAt: string;
+  reviewedAt?: string | null;
 }
 
 export interface CommandDispatch {
@@ -88,4 +106,21 @@ export interface LogEntry {
   message: string;
   metadata: Record<string, unknown>;
   timestamp: string;
+}
+
+export interface TunnelStatus {
+  enabled: boolean;
+  running: boolean;
+  command: string;
+  targetUrl: string;
+  publicUrl?: string | null;
+  message: string;
+}
+
+export interface AgentInstallPreview {
+  serverUrl: string;
+  bootstrapTokenHint: string;
+  windowsCommand: string;
+  linuxCommand: string;
+  note: string;
 }

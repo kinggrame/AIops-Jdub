@@ -15,6 +15,7 @@
         <java.version>17</java.version>
         <spring-boot.version>3.3.0</spring-boot.version>
         <caffeine.version>3.1.8</caffeine.version>
+        <fastjson.version>2.0.52</fastjson.version>
     </properties>
 
     <modules>
@@ -41,6 +42,12 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
 
     <build>
         <pluginManagement>

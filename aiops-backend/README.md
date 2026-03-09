@@ -58,10 +58,68 @@ mvn spring-boot:run -pl aiops-web -am
 
 关键配置：
 
-- `aiops.security.seed`：Agent token 前缀校验种子
+- `aiops.security.seed`：Agent bootstrap token 种子，首次注册后服务端会签发长期 agent token
+- `aiops.tunnel.*`：可选的内网穿透生命周期管理，默认关闭
 - `aiops.cache.*`：缓存参数
+- `spring.data.redis.*`：Redis 二级缓存连接配置
 - `aiops.llm.*`：Provider 开关，默认使用 `Ollama` 模拟 provider
 - `aiops.command.*`：允许/禁止命令列表
+
+## 双层缓存
+
+后端当前已经接入 `Caffeine + Redis` 双层缓存：
+
+- 一级缓存：Caffeine，本地热点数据快速命中
+- 二级缓存：Redis，多实例共享缓存数据
+- Redis 不可用时自动降级为 Caffeine-only，不阻塞主流程
+
+### 启动 Redis（可选但推荐）
+
+如果本地已经安装 Redis，可直接启动；也可以使用 Docker：
+
+```bash
+docker run -d --name aiops-redis -p 6379:6379 redis:7
+```
+
+### 环境变量示例
+
+```bash
+SPRING_DATA_REDIS_HOST=localhost
+SPRING_DATA_REDIS_PORT=6379
+AIOPS_CACHE_REDIS_ENABLED=true
+```
+
+当 Redis 未启动时，日志中会看到缓存降级 warning，这是预期行为。
+
+## 安全优先的内网穿透
+
+后端现在支持可选的 tunnel 进程托管，但默认关闭，且默认只允许把本地 `127.0.0.1:8080` 暴露出去。
+
+默认配置在 `aiops-backend/aiops-web/src/main/resources/application.yml`：
+
+```yaml
+aiops:
+  tunnel:
+    enabled: false
+    command: cloudflared
+    arguments: tunnel --url http://127.0.0.1:8080
+    allow-non-local-url: false
+```
+
+安全约束：
+
+- 默认不启动 tunnel
+- 仅允许 `cloudflared`、`frpc`、`ngrok` 三种命令
+- 默认只允许转发 `localhost`，避免误把局域网其他服务暴露到公网
+- backend 停止时会主动关闭 tunnel 子进程
+
+建议：
+
+- 演示环境优先使用临时 tunnel
+- 只暴露 backend，绝不暴露 MySQL、Redis 或本地文件服务
+- 只在需要外部 agent 接入时开启，演示结束立即关闭
+- tunnel 启动后可访问 `/api/v1/metrics/tunnel` 查看当前 targetUrl 和识别到的 publicUrl
+- 可访问 `/api/v1/metrics/tunnel/install-preview` 获取可直接复制的 agent 启动命令预览
 
 ## API 示例
 
@@ -80,10 +138,11 @@ curl -X POST http://localhost:8080/api/v1/agent/register \
 
 ### 2. 上报指标并触发闭环
 
-将上一步返回的 `agentId` 带入：
+将上一步返回的 `agentId` 和 `token` 带入：
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/agent/report \
+  -H "Authorization: Bearer <issuedToken>" \
   -H "Content-Type: application/json" \
   -d '{
     "agentId": "<agentId>",
@@ -198,10 +257,10 @@ http://localhost:5173
 
 ### 3. 启动 Agent
 
-先设置 token：
+先设置 bootstrap token：
 
 ```bash
-set AIOPS_TOKEN=aiops-mvp-seed-demo-token
+set AIOPS_BOOTSTRAP_TOKEN=aiops-mvp-seed-demo-token
 ```
 
 再启动：
@@ -221,9 +280,9 @@ http://localhost:8089
 ### 4. 实际联调链路
 
 1. Agent 启动后调用 `/api/v1/agent/register`
-2. 后端返回 `agentId`
-3. Agent 建立 WebSocket 连接到 `/ws/agent/{agentId}`
-4. Agent 周期采集真实或回退指标，并调用 `/api/v1/agent/report`
+2. 后端返回 `agentId` 和服务端签发的 agent token
+3. Agent 使用签发 token 建立 WebSocket 连接到 `/ws/agent/{agentId}`
+4. Agent 周期采集真实或回退指标，并带 token 调用 `/api/v1/agent/report`
 5. 后端生成告警、分析结果，必要时下发命令
 6. 如果 Agent WebSocket 在线，后端立即发送命令 envelope
 7. Agent 执行命令后调用 `/api/v1/agent/command/result`

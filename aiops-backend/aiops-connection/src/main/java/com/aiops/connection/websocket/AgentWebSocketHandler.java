@@ -1,5 +1,7 @@
 package com.aiops.connection.websocket;
 
+import com.aiops.connection.config.AgentTokenUtils;
+import com.aiops.connection.service.AgentRegistryService;
 import com.aiops.connection.service.AgentSessionService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -11,14 +13,22 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 public class AgentWebSocketHandler extends TextWebSocketHandler {
 
     private final AgentSessionService agentSessionService;
+    private final AgentRegistryService agentRegistryService;
 
-    public AgentWebSocketHandler(AgentSessionService agentSessionService) {
+    public AgentWebSocketHandler(AgentSessionService agentSessionService,
+                                 AgentRegistryService agentRegistryService) {
         this.agentSessionService = agentSessionService;
+        this.agentRegistryService = agentRegistryService;
     }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String agentId = extractAgentId(session);
+        String token = AgentTokenUtils.extractBearerToken(session.getHandshakeHeaders().getFirst("Authorization"));
+        if (agentRegistryService.authenticate(agentId, token).isEmpty()) {
+            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Unauthorized agent websocket"));
+            return;
+        }
         agentSessionService.register(agentId, session);
     }
 

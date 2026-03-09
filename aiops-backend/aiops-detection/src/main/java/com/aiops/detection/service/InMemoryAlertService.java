@@ -1,6 +1,7 @@
 package com.aiops.detection.service;
 
 import com.aiops.detection.entity.Alert;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
+@ConditionalOnMissingBean(AlertService.class)
 public class InMemoryAlertService implements AlertService {
 
     private final List<Alert> alerts = new CopyOnWriteArrayList<>();

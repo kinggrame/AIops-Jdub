@@ -7,6 +7,7 @@ public record AgentChatResult(
         String agentType,
         String provider,
         String reply,
-        Map<String, Object> details
+        Map<String, Object> details,
+        java.util.List<Map<String, Object>> stages
 ) {
 }

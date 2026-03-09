@@ -3,6 +3,8 @@ package com.aiops.api.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 
+import java.io.Serializable;
+
 public record CreateAlertRequest(
         @NotBlank(message = "hostname is required") String hostname,
         @NotBlank(message = "source is required") String source,
@@ -12,5 +14,5 @@ public record CreateAlertRequest(
         @PositiveOrZero(message = "threshold must be positive") double threshold,
         @NotBlank(message = "description is required") String description,
         String status
-) {
+) implements Serializable {
 }

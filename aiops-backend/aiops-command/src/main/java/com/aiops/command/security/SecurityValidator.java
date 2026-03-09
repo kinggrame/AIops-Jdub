@@ -16,10 +16,11 @@ public class SecurityValidator {
     }
 
     public void validateAction(String action) {
-        if (properties.getAllowed().stream().noneMatch(action::equalsIgnoreCase)) {
+        String normalized = action == null ? "" : action.trim().toLowerCase();
+        if (properties.getAllowed().stream().map(value -> value.trim().toLowerCase()).noneMatch(normalized::equals)) {
             throw new BusinessException("Command not allowed: " + action);
         }
-        if (properties.getForbidden().stream().anyMatch(forbidden -> action.toLowerCase().contains(forbidden.toLowerCase()))) {
+        if (properties.getForbidden().stream().anyMatch(forbidden -> normalized.contains(forbidden.toLowerCase()))) {
             throw new BusinessException("Dangerous command blocked: " + action);
         }
     }

@@ -23,6 +23,12 @@ npm run dev
 
 默认访问：`http://localhost:5173`
 
+客户端管理页现在会直接展示：
+
+- tunnel 状态
+- tunnel 识别到的 publicUrl
+- Windows/Linux agent 启动命令（可直接复制）
+
 ## 关联项目
 
 - 后端项目说明：`../aiops-backend/README.md`

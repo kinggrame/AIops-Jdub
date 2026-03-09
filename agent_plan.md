@@ -80,6 +80,22 @@ type Trigger struct {
 | WebSocket | 实时命令接收 |
 | 断点续传 | 网络中断时本地缓存 |
 
+### 3.1 Log Watch（日志监听）
+
+Agent 不等待服务端拉取日志，而是在本地决定监听哪些日志源，并对新增内容做增量上报。
+
+| 日志源 | 方式 | 说明 |
+|--------|------|------|
+| 文件日志 | tail / offset | 监听 `/var/log/*.log` 等文件新增内容 |
+| systemd 日志 | journalctl | 监听指定 service 的日志 |
+| 命令输出 | shell snapshot | 执行 `top`、`ps aux` 后将输出作为诊断日志 |
+
+上报策略：
+
+- 周期汇总上报
+- 关键字触发即时上报
+- 本地先过滤、截断、聚合，再发送给服务端
+
 ### 4. Config Manager（配置管理）
 
 ```yaml
@@ -87,6 +103,8 @@ type Trigger struct {
 server:
   url: "https://aiops.example.com"
   token: "${AIOPS_TOKEN}"  # 从环境变量读取
+  trusted_servers:
+    - "10.0.0.10:8080"
 
 webui:
   enable: true             # 是否启用 Web 配置页面
@@ -110,9 +128,19 @@ triggers:
     
 commands:
   allowed:
-    - restart_service
-    - get_logs
-    - clear_cache
+    - top
+    - ps aux
+    - journalctl -u nginx -n 200
+    - tail -n 200 /var/log/nginx/error.log
+
+logwatch:
+  files:
+    - /var/log/syslog
+    - /var/log/nginx/error.log
+  keywords:
+    - error
+    - panic
+    - oom
 ```
 
 ### 5. Web UI 页面设计
@@ -164,11 +192,18 @@ commands:
 
 | 命令 | 说明 |
 |------|------|
-| restart_service | 重启系统服务 |
-| stop_service | 停止系统服务 |
-| clear_cache | 清理缓存 |
-| get_logs | 获取日志 |
-| get_process | 查看进程 |
+| top | 查看实时进程快照 |
+| ps aux | 查看进程列表 |
+| journalctl -u nginx -n 200 | 查看服务日志 |
+| tail -n 200 /var/log/nginx/error.log | 查看文件日志 |
+| systemctl status nginx | 查看服务状态 |
+
+说明：
+
+- 不使用模板动作
+- 使用白名单命令过滤
+- 所有 ExecuteAgent 提议的命令都必须人工审批后，才允许下发
+- Agent 本地再次做白名单和可信服务端校验
 
 ```yaml
 # config.yaml
@@ -194,9 +229,15 @@ triggers:
     
 commands:
   allowed:
-    - restart_service
-    - get_logs
-    - clear_cache
+    - top
+    - ps aux
+    - journalctl -u nginx -n 200
+    - tail -n 200 /var/log/nginx/error.log
+
+security:
+  approval_required: true
+  trusted_servers:
+    - "10.0.0.10:8080"
 ```
 
 ## 五、目录结构

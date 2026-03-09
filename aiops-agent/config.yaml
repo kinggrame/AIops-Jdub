@@ -1,8 +1,10 @@
 server:
-  url: "http://localhost:8080"
-  token: "${AIOPS_TOKEN}"
+  url: "${AIOPS_SERVER_URL:http://localhost:8080}"
+  bootstrap_token: "${AIOPS_BOOTSTRAP_TOKEN}"
   host: "server-001"
   ip: "127.0.0.1"
+  trusted_servers:
+    - "localhost:8080"
 
 webui:
   enable: true
@@ -26,6 +28,21 @@ triggers:
 
 commands:
   allowed:
-    - restart_service
-    - get_logs
-    - clear_cache
+    - top
+    - ps aux
+    - journalctl -u nginx -n 200
+    - tail -n 200 /var/log/nginx/error.log
+
+logwatch:
+  files:
+    - /var/log/syslog
+    - /var/log/nginx/error.log
+  keywords:
+    - error
+    - panic
+    - oom
+
+security:
+  approval_required: true
+  trusted_servers:
+    - "localhost:8080"

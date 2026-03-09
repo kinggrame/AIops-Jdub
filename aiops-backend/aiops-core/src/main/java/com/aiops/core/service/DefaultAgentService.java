@@ -2,6 +2,7 @@ package com.aiops.core.service;
 
 import com.aiops.core.agent.AgentFactory;
 import com.aiops.core.llm.LlmProvider;
+import com.aiops.core.orchestrator.MultiAgentOrchestrator;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -14,10 +15,14 @@ public class DefaultAgentService implements AgentService {
 
     private final AgentFactory agentFactory;
     private final List<LlmProvider> providers;
+    private final MultiAgentOrchestrator orchestrator;
 
-    public DefaultAgentService(AgentFactory agentFactory, List<LlmProvider> providers) {
+    public DefaultAgentService(AgentFactory agentFactory,
+                               List<LlmProvider> providers,
+                               MultiAgentOrchestrator orchestrator) {
         this.agentFactory = agentFactory;
         this.providers = providers;
+        this.orchestrator = orchestrator;
     }
 
     @Override
@@ -25,7 +30,11 @@ public class DefaultAgentService implements AgentService {
         agentFactory.validateType(command.agentType());
 
         Map<String, Object> details = new LinkedHashMap<>();
-        if ("data".equalsIgnoreCase(command.agentType())) {
+        if ("summarize".equalsIgnoreCase(command.agentType())
+                || "plan".equalsIgnoreCase(command.agentType())
+                || "execute".equalsIgnoreCase(command.agentType())) {
+            details.putAll(orchestrator.run(String.valueOf(command.metrics().getOrDefault("agentId", "manual-chat")), command.message(), command.metrics(), command.events()));
+        } else if ("data".equalsIgnoreCase(command.agentType())) {
             details.putAll(agentFactory.dataAgent().analyzeMetrics(command.metrics()));
         } else {
             details.putAll(agentFactory.analysisAgent().diagnose(command.message(), command.metrics(), command.events()));
@@ -49,7 +58,8 @@ public class DefaultAgentService implements AgentService {
                 command.agentType(),
                 provider.name(),
                 reply,
-                details
+                details,
+                (List<Map<String, Object>>) details.getOrDefault("stages", List.of())
         );
     }
 }

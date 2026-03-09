@@ -1,26 +1,20 @@
 package com.aiops.cache.config;
 
+import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-
+@Data
 @ConfigurationProperties(prefix = "aiops.cache")
 public class CacheProperties {
 
     private long maximumSize = 1000;
     private long expireAfterSeconds = 600;
+    private RedisProperty redis = new RedisProperty();
 
-    public long getMaximumSize() {
-        return maximumSize;
-    }
 
-    public void setMaximumSize(long maximumSize) {
-        this.maximumSize = maximumSize;
-    }
+    @Data
+    public static class RedisProperty {
+        private boolean enabled = true;
+        private String keyPrefix = "aiops:";
 
-    public long getExpireAfterSeconds() {
-        return expireAfterSeconds;
-    }
-
-    public void setExpireAfterSeconds(long expireAfterSeconds) {
-        this.expireAfterSeconds = expireAfterSeconds;
     }
 }

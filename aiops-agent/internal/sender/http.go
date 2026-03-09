@@ -24,6 +24,7 @@ type RegisterResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
 		AgentID string `json:"agentId"`
+		Token   string `json:"token"`
 	} `json:"data"`
 }
 
@@ -32,6 +33,12 @@ type ReportRequest struct {
 	Hostname string          `json:"hostname"`
 	Metrics  map[string]any  `json:"metrics"`
 	Events   []trigger.Event `json:"events"`
+}
+
+type LogIngestionRequest struct {
+	AgentID  string           `json:"agentId"`
+	Hostname string           `json:"hostname"`
+	Logs     []map[string]any `json:"logs"`
 }
 
 type HTTPClient struct {
@@ -55,19 +62,26 @@ func NewHTTPClient(baseURL, token string) *HTTPClient {
 	}
 }
 
-func (c *HTTPClient) Register(ctx context.Context, payload RegisterRequest) (string, error) {
+func (c *HTTPClient) Register(ctx context.Context, payload RegisterRequest) (string, string, error) {
 	var response RegisterResponse
 	if err := c.post(ctx, "/api/v1/agent/register", payload, &response); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if response.Data.AgentID == "" {
-		return "", fmt.Errorf("empty agentId in register response")
+		return "", "", fmt.Errorf("empty agentId in register response")
 	}
-	return response.Data.AgentID, nil
+	if response.Data.Token == "" {
+		return "", "", fmt.Errorf("empty token in register response")
+	}
+	return response.Data.AgentID, response.Data.Token, nil
 }
 
 func (c *HTTPClient) Report(ctx context.Context, payload ReportRequest) error {
 	return c.post(ctx, "/api/v1/agent/report", payload, nil)
+}
+
+func (c *HTTPClient) ReportLogs(ctx context.Context, payload LogIngestionRequest) error {
+	return c.post(ctx, "/api/v1/agent/logs", payload, nil)
 }
 
 func (c *HTTPClient) ReportCommandResult(ctx context.Context, payload CommandResultRequest) error {

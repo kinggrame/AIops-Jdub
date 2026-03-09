@@ -1,11 +1,14 @@
 package com.aiops.api.controller;
 
 import com.aiops.api.dto.request.AgentChatRequest;
+import com.aiops.api.dto.request.AgentLogIngestionRequest;
 import com.aiops.api.dto.request.AgentRegisterRequest;
 import com.aiops.api.dto.request.AgentReportRequest;
 import com.aiops.api.dto.request.CommandResultRequest;
 import com.aiops.api.dto.response.AgentChatResponse;
+import com.aiops.common.exception.BusinessException;
 import com.aiops.common.model.ApiResponse;
+import com.aiops.connection.config.AgentTokenUtils;
 import com.aiops.connection.model.CommandResult;
 import com.aiops.connection.service.AgentRegistryService;
 import com.aiops.connection.service.CommandDispatchService;
@@ -18,10 +21,13 @@ import com.aiops.core.service.AgentService;
 import com.aiops.detection.entity.Alert;
 import com.aiops.detection.service.AlertService;
 import com.aiops.search.service.SearchService;
+import com.aiops.search.ingestion.LogIngestionService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,19 +45,22 @@ public class AgentController {
     private final AgentService agentService;
     private final CommandDispatchService commandDispatchService;
     private final AgentReportFlowService agentReportFlowService;
+    private final LogIngestionService logIngestionService;
 
     public AgentController(AgentRegistryService agentRegistryService,
                            SearchService searchService,
                            AlertService alertService,
                            AgentService agentService,
                            CommandDispatchService commandDispatchService,
-                           AgentReportFlowService agentReportFlowService) {
+                           AgentReportFlowService agentReportFlowService,
+                           LogIngestionService logIngestionService) {
         this.agentRegistryService = agentRegistryService;
         this.searchService = searchService;
         this.alertService = alertService;
         this.agentService = agentService;
         this.commandDispatchService = commandDispatchService;
         this.agentReportFlowService = agentReportFlowService;
+        this.logIngestionService = logIngestionService;
     }
 
     @PostMapping("/register")
@@ -65,7 +74,9 @@ public class AgentController {
     }
 
     @PostMapping("/report")
-    public ApiResponse<?> report(@Valid @RequestBody AgentReportRequest request) {
+    public ApiResponse<?> report(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                 @Valid @RequestBody AgentReportRequest request) {
+        authenticateAgent(request.agentId(), authorization);
         Map<String, Object> metrics = request.metrics();
         List<Map<String, Object>> events = request.events() == null ? List.of() : request.events();
         agentRegistryService.heartbeat(request.agentId(), metrics);
@@ -79,7 +90,9 @@ public class AgentController {
     }
 
     @PostMapping("/command/result")
-    public ApiResponse<?> receiveCommandResult(@Valid @RequestBody CommandResultRequest request) {
+    public ApiResponse<?> receiveCommandResult(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                               @Valid @RequestBody CommandResultRequest request) {
+        authenticateAgent(request.agentId(), authorization);
         commandDispatchService.recordResult(new CommandResult(
                 request.commandId(),
                 request.agentId(),
@@ -104,8 +117,17 @@ public class AgentController {
                 result.agentType(),
                 result.provider(),
                 result.reply(),
-                result.details()
+                result.details(),
+                result.stages()
         ));
+    }
+
+    @PostMapping("/logs")
+    public ApiResponse<?> ingestLogs(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                     @Valid @RequestBody AgentLogIngestionRequest request) {
+        authenticateAgent(request.agentId(), authorization);
+        logIngestionService.ingest(request.agentId(), request.hostname(), request.logs());
+        return ApiResponse.ok(Map.of("stored", true, "count", request.logs().size()), "Logs ingested");
     }
 
     @GetMapping("/clients")
@@ -125,5 +147,12 @@ public class AgentController {
                         agent -> agent.agentId(),
                         agent -> commandDispatchService.listPending(agent.agentId())
                 )));
+    }
+
+    private void authenticateAgent(String agentId, String authorization) {
+        String token = AgentTokenUtils.extractBearerToken(authorization);
+        if (agentRegistryService.authenticate(agentId, token).isEmpty()) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Invalid or missing agent authorization");
+        }
     }
 }

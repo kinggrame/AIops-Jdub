@@ -1,6 +1,7 @@
 package com.aiops.search.service;
 
 import com.aiops.search.entity.LogEntry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -12,6 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
+@ConditionalOnMissingBean(SearchService.class)
 public class InMemorySearchService implements SearchService {
 
     private final List<LogEntry> logs = new CopyOnWriteArrayList<>();

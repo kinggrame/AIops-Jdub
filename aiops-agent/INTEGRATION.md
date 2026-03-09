@@ -11,11 +11,16 @@
 
 ## 启动前准备
 
-先设置环境变量：
+先设置 bootstrap 环境变量：
 
 ```bash
-set AIOPS_TOKEN=aiops-mvp-seed-demo-token
+set AIOPS_BOOTSTRAP_TOKEN=aiops-mvp-seed-demo-token
 ```
+
+首次注册成功后会自动生成本地授权文件：
+
+- Windows: `%USERPROFILE%\\.aiops\\authorization.json`
+- Linux: `~/.aiops/authorization.json`
 
 ## 启动 Agent
 
@@ -30,11 +35,12 @@ go run ./cmd -c config.yaml
 ## 联调过程
 
 1. Agent 启动后调用 `/api/v1/agent/register`
-2. 收到 `agentId`
-3. 建立 `ws://localhost:8080/ws/agent/{agentId}`
-4. 周期上报 `/api/v1/agent/report`
-5. 收到后端下发命令
-6. 执行命令并回传 `/api/v1/agent/command/result`
+2. 收到 `agentId` 和服务端签发的 agent token
+3. 后续请求统一携带 `Authorization: Bearer <agent-token>`
+4. 建立 `ws://localhost:8080/ws/agent/{agentId}`
+5. 周期上报 `/api/v1/agent/report`
+6. 收到后端下发命令
+7. 执行命令并回传 `/api/v1/agent/command/result`
 
 ## 本地验证点
 

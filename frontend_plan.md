@@ -122,6 +122,8 @@ aiops-web/
 - [x] Agent 基本信息（IP、主机名）
 - [x] 下发命令（重启服务等）
 - [x] 查看 Agent 采集的实时指标
+- [ ] 查看 Agent 日志监听配置
+- [ ] 查看 Agent 信任的服务端地址
 
 ### 4. Agent 对话 (/agent)
 
@@ -130,6 +132,9 @@ aiops-web/
 - [x] 消息列表展示
 - [x] 发送/接收消息
 - [x] 关联目标服务器选择
+- [ ] 展示 Summarize / Plan / Execute / Report 多 Agent 阶段结果
+- [ ] ExecuteAgent 命令审批卡片
+- [ ] 审批通过后查看命令执行结果
 
 ### 5. 告警管理 (/alerts)
 
@@ -138,6 +143,8 @@ aiops-web/
 - [x] 告警状态处理（确认/解决）
 - [x] 告警规则配置
 - [x] 告警通知渠道配置
+- [ ] 关联日志摘要查看
+- [ ] 关联执行建议和审批记录查看
 
 ### 6. 知识库管理 (/knowledge)
 
@@ -168,12 +175,24 @@ interface ApiResponse<T> {
 // Agent 对话
 interface ChatRequest {
   message: string;
-  agentType: 'DATA' | 'ANALYSIS' | 'REPORT';
+  agentType: 'SUMMARIZE' | 'PLAN' | 'EXECUTE' | 'REPORT';
 }
 
 interface ChatResponse {
   message: string;
   timestamp: number;
+  stages?: Array<{
+    agent: 'SUMMARIZE' | 'PLAN' | 'EXECUTE' | 'REPORT';
+    output: string;
+  }>;
+}
+
+interface ApprovalRequest {
+  commandId: string;
+  command: string;
+  targetAgentId: string;
+  approved: boolean;
+  reviewer: string;
 }
 
 // 知识检索

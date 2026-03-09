@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App, Button, Card, Drawer, Form, Input, Select, Space, Table, Tag, Typography } from 'antd'
 import { useState } from 'react'
-import { fetchAgents, reportAgent, registerAgent } from '../../api/aiops'
+import { fetchAgentInstallPreview, fetchAgents, fetchTunnelStatus, reportAgent, registerAgent } from '../../api/aiops'
 import { AsyncState } from '../../components/common/AsyncState'
 import { PageHeader } from '../../components/common/PageHeader'
 import { formatTime, getMetricValue } from '../../utils/format'
@@ -11,6 +11,8 @@ export default function AgentsPage() {
   const queryClient = useQueryClient()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { data: agents = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ['agents'], queryFn: fetchAgents })
+  const { data: tunnelStatus } = useQuery({ queryKey: ['tunnel-status'], queryFn: fetchTunnelStatus, refetchInterval: 5000 })
+  const { data: installPreview } = useQuery({ queryKey: ['agent-install-preview'], queryFn: fetchAgentInstallPreview, refetchInterval: 5000 })
 
   const registerMutation = useMutation({
     mutationFn: registerAgent,
@@ -35,6 +37,31 @@ export default function AgentsPage() {
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
       <PageHeader title="客户端管理" description="注册新 Agent、查看最近心跳，并快速触发一次高负载模拟上报。" badge={`${agents.length} Agents`} />
+      <Card className="glass-card" title="Tunnel 状态与快速接入">
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <Tag color={tunnelStatus?.running ? 'green' : tunnelStatus?.enabled ? 'gold' : 'default'}>
+              {tunnelStatus?.running ? 'Tunnel 运行中' : tunnelStatus?.enabled ? 'Tunnel 已启用' : 'Tunnel 未启用'}
+            </Tag>
+            <Tag>{tunnelStatus?.command ?? 'cloudflared'}</Tag>
+          </Space>
+          <Typography.Text style={{ color: '#e2e8f0' }}>Target: {tunnelStatus?.targetUrl ?? 'http://127.0.0.1:8080'}</Typography.Text>
+          <Typography.Text copyable={tunnelStatus?.publicUrl ? { text: tunnelStatus.publicUrl } : undefined} style={{ color: '#e2e8f0' }}>
+            Public URL: {tunnelStatus?.publicUrl ?? '暂未识别，请先启动 tunnel'}
+          </Typography.Text>
+          <Typography.Paragraph style={{ color: 'rgba(226,232,240,0.72)', marginBottom: 0 }}>
+            {installPreview?.note ?? tunnelStatus?.message}
+          </Typography.Paragraph>
+          <Typography.Text strong style={{ color: '#f8fafc' }}>Windows 启动命令</Typography.Text>
+          <Typography.Paragraph copyable={installPreview ? { text: installPreview.windowsCommand } : undefined} style={{ marginBottom: 0, whiteSpace: 'pre-wrap', color: '#e2e8f0' }}>
+            {installPreview?.windowsCommand ?? '等待后端返回安装命令...'}
+          </Typography.Paragraph>
+          <Typography.Text strong style={{ color: '#f8fafc' }}>Linux 启动命令</Typography.Text>
+          <Typography.Paragraph copyable={installPreview ? { text: installPreview.linuxCommand } : undefined} style={{ marginBottom: 0, whiteSpace: 'pre-wrap', color: '#e2e8f0' }}>
+            {installPreview?.linuxCommand ?? '等待后端返回安装命令...'}
+          </Typography.Paragraph>
+        </Space>
+      </Card>
       <Space>
         <Button type="primary" onClick={() => setDrawerOpen(true)}>注册 Agent</Button>
       </Space>

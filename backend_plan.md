@@ -9,10 +9,10 @@
 | 层级 | 技术选型 |
 |------|----------|
 | 框架 | Spring Boot 3.x (Java 17) + Spring Cloud (预留) |
-| LLM/Agent | LangChain4j + Spring Boot Starter |
+| LLM/Agent | LangChain4j + Spring Boot Starter + Multi-Agent Orchestrator |
 | 知识图谱 | Neo4j (故障传播链、依赖关系) |
 | 流计算 | Apache Flink (实时指标处理，预留接口) |
-| 搜索引擎 | Elasticsearch (日志/数据搜索) |
+| 搜索引擎 | Elasticsearch (日志/数据搜索，支持 Agent 增量日志上报) |
 | RAG | Milvus 向量数据库 |
 | 缓存 | Caffeine (本地) + Redis (分布式) |
 | MQ | RocketMQ (集成 Canal，实现 Binlog 同步) |
@@ -23,6 +23,17 @@
 
 ### LLM 调用优先级
 API → Claude → Ollama
+
+### Multi-Agent 协作角色
+
+| Agent | 职责 | 输入 | 输出 |
+|------|------|------|------|
+| **SummarizeAgent** | 压缩日志、事件、指标上下文 | 原始日志、指标、事件 | 结构化摘要 |
+| **PlanAgent** | 生成诊断与处置计划 | 结构化摘要、知识库、历史案例 | 执行计划、风险说明 |
+| **ExecuteAgent** | 提出命令并代理 Agent 执行 | 执行计划、人工审批结果 | 执行请求、执行结果 |
+| **ReportAgent** | 汇总计划与执行结果 | 摘要、计划、执行结果 | 人类可读报告 |
+
+> **执行模型说明**：ExecuteAgent 不使用模板动作，采用“白名单命令 + 人工审批 + Agent 代理执行”模式。命令必须同时通过服务端授权、人工审核和 Agent 本地白名单校验。
 
 ### 架构模式
 **Server-Agent 架构**：Agent 主动 Push 数据到服务端，服务端只需开放 443 端口
@@ -72,10 +83,15 @@ aiops-platform/
 │       │   ├── AnthropicProvider.java         # Claude 实现
 │       │   └── OllamaProvider.java            # Ollama 实现
 │       ├── agent/                             # Agent 框架
-│       │   ├── DataAgent.java                 # 数据分析 Agent
-│       │   ├── AnalysisAgent.java             # 分析 Agent
-│       │   ├── ReportAgent.java               # 报告生成 Agent
+│       │   ├── DataAgent.java                 # 数据分析 Agent（兼容层）
+│       │   ├── AnalysisAgent.java             # 分析 Agent（兼容层）
+│       │   ├── ReportAgent.java               # 报告生成 Agent（兼容层）
+│       │   ├── SummarizeAgent.java            # 日志/指标压缩 Agent
+│       │   ├── PlanAgent.java                 # 计划生成 Agent
+│       │   ├── ExecuteAgent.java              # 执行代理 Agent
 │       │   └── AgentFactory.java              # Agent 工厂
+│       ├── orchestrator/                      # 多 Agent 编排
+│       │   └── MultiAgentOrchestrator.java    # 多 Agent 状态流编排
 │       └── service/                           # 核心服务
 │           └── AgentService.java
 │
@@ -111,6 +127,8 @@ aiops-platform/
 │       │   └── LogDocument.java
 │       ├── repository/                       # ES 仓库
 │       │   └── LogRepository.java
+│       ├── ingestion/                        # 日志接入
+│       │   └── LogIngestionService.java      # Agent 日志增量接入
 │       └── service/                          # 搜索服务
 │           └── SearchService.java
 │
@@ -226,6 +244,9 @@ aiops-platform/
 ├── aiops-command/                           # 命令执行模块
 │   └── src/main/java/com/aiops/command/
 │       ├── config/                          # 命令配置
+│       ├── approval/                        # 人工审批
+│       │   ├── ApprovalRequest.java         # 审批请求
+│       │   └── ApprovalService.java         # 审批服务
 │       ├── whitelist/                       # 命令白名单
 │       │   └── CommandWhitelist.java
 │       ├── executor/                        # 命令执行器
@@ -269,9 +290,9 @@ aiops-platform/
 | **aiops-graph** | Neo4j 接口预留，图谱查询基础功能 | ⏳ |
 | **aiops-stream** | Flink 接口预留，流处理作业框架 | ⏳ |
 | **aiops-monitor** | Prometheus 接口预留，告警规则基础 | ⏳ |
-| **aiops-agent** | 多语言客户端 + 触发规则引擎 | ⏳ |
+| **aiops-agent** | 多语言客户端 + 触发规则引擎 + 日志监听 | ⏳ |
 | **aiops-cicd** | CI/CD 集成预留接口 | ⏳ |
-| **aiops-command** | 命令执行 + 白名单 + 沙箱 | ⏳ |
+| **aiops-command** | 命令执行 + 白名单 + 人工审批 + 沙箱 | ⏳ |
 | **aiops-connection** | 服务端-客户端通信（WebSocket） | ⏳ |
 
 ---
@@ -317,9 +338,9 @@ aiops-platform/
 | 数据类型 | 发送给谁 | 说明 |
 |----------|----------|------|
 | **基础指标** | 服务端 | CPU/内存/磁盘，仅存储和展示 |
-| **异常事件** | AI Agent | 需要分析、决策 |
-| **告警** | AI Agent | 需要诊断、建议/执行 |
-| **日志（异常时）** | AI Agent | 辅助分析，附带上下文 |
+| **异常事件** | SummarizeAgent / PlanAgent | 需要分析、决策 |
+| **告警** | PlanAgent / ExecuteAgent | 需要诊断、建议/执行 |
+| **日志（异常时）** | SummarizeAgent | 压缩异常上下文，辅助分析 |
 
 ```
 客户端判断逻辑：
@@ -373,15 +394,29 @@ triggers:
     target: ai                   # 服务宕机必须发 AI
 
 commands:
-  allowed:                       # 允许 AI 执行的命令
-    - restart_service
-    - clear_cache
-    - scale_deployment
-    - get_logs
+  allowed:                       # 允许 Agent 代理执行的白名单命令（非模板）
+    - top
+    - ps aux
+    - journalctl -u nginx -n 200
+    - tail -n 200 /var/log/nginx/error.log
+    - systemctl status nginx
   forbidden:                     # 禁止执行的命令
     - rm -rf
     - shutdown
     - init 6
+
+approval:
+  required: true                 # ExecuteAgent 必须人工审批后执行
+  audit-log: true                # 记录审批和执行审计日志
+
+logwatch:
+  enabled: true
+  mode: incremental              # 增量读取
+  include-files:
+    - /var/log/syslog
+    - /var/log/nginx/error.log
+  include-process-output:
+    - journalctl -u nginx -f
 ```
 
 ### 4. 安全认证方案
@@ -563,7 +598,7 @@ public class ExampleService {
 | **Canal → MQ → ES** | 异步 | MySQL Binlog → Canal → RocketMQ → 消费者 → ES | 实时数据同步 |
 | **Agent 对话** | 异步 | 请求 → 异步处理 → 流式响应 / 回调 | 非阻塞交互 |
 | **告警检测** | 异步 | 指标采集 → 异步检测 → MQ 通知 → 推送 | 实时告警 |
-| **日志采集** | 异步 | 日志 → 批量缓冲 → 异步批量写入 ES | 高吞吐写入 |
+| **日志采集** | 异步 | Agent 日志监听 → 本地过滤/压缩 → 批量缓冲 → 异步批量写入 ES | 高吞吐写入 |
 | **Caffeine ↔ Redis** | 异步 | 写入 → Caffeine → 异步同步 Redis | 多级缓存一致性 |
 | **Redis → MySQL** | 异步 | 缓存数据 → 异步批量落库 | 持久化存储 |
 
@@ -579,8 +614,8 @@ public class ExampleService {
 /**
  * Agent 对话服务接口
  *
- * <p>提供基于 LangChain4j 的多 Agent 协作对话能力，支持 DataAgent、AnalysisAgent、ReportAgent
- * 三种 Agent 的协调工作，实现日志解析、异常检测与分析报告生成的自动化流程。</p>
+ * <p>提供基于 LangChain4j 的多 Agent 协作对话能力，支持 SummarizeAgent、PlanAgent、ExecuteAgent、ReportAgent
+ * 四种 Agent 的协调工作，实现日志压缩、异常分析、人工审批执行与报告生成的自动化流程。</p>
  *
  * <p>LLM 调用优先级：OpenAI API > Claude > Ollama</p>
  *
