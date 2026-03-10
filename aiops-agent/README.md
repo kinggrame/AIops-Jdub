@@ -35,7 +35,8 @@ set AIOPS_BOOTSTRAP_TOKEN=aiops-mvp-seed-demo-token
 
 ```bash
 cd ../aiops-backend
-mvn spring-boot:run -pl aiops-web -am
+cd aiops-web
+mvn spring-boot:run
 ```
 
 ## 运行 Agent

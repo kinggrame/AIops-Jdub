@@ -1,6 +1,6 @@
 package com.aiops.core.service;
 
-import com.aiops.detection.entity.Alert;
+import com.aiops.alert.model.Alert;
 
 import java.util.List;
 import java.util.Map;
