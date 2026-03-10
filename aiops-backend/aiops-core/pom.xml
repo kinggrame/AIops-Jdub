@@ -30,17 +30,17 @@
         </dependency>
         <dependency>
             <groupId>com.aiops</groupId>
-            <artifactId>aiops-detection</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.aiops</groupId>
             <artifactId>aiops-command</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.aiops</groupId>
             <artifactId>aiops-connection</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aiops</groupId>
+            <artifactId>aiops-alert</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

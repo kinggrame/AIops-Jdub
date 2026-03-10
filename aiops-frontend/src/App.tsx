@@ -6,6 +6,8 @@ import { useAuthStore } from './store'
 
 const LoginPage = lazy(() => import('./pages/Login'))
 const DashboardPage = lazy(() => import('./pages/Dashboard'))
+const ServersPage = lazy(() => import('./pages/Servers'))
+const ConnectionsPage = lazy(() => import('./pages/Connections'))
 const AgentsPage = lazy(() => import('./pages/Agents'))
 const AgentChatPage = lazy(() => import('./pages/AgentChat'))
 const AlertsPage = lazy(() => import('./pages/Alerts'))
@@ -28,6 +30,8 @@ function ProtectedRoutes() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/servers" element={<ServersPage />} />
+          <Route path="/connections" element={<ConnectionsPage />} />
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/agent" element={<AgentChatPage />} />
           <Route path="/alerts" element={<AlertsPage />} />

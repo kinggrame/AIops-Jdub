@@ -22,6 +22,7 @@ type ServerConfig struct {
 	URL            string   `yaml:"url"`
 	Token          string   `yaml:"token"`
 	BootstrapToken string   `yaml:"bootstrap_token"`
+	PairingToken   string   `yaml:"pairing_token"`
 	Host           string   `yaml:"host"`
 	IP             string   `yaml:"ip"`
 	TrustedServers []string `yaml:"trusted_servers"`
@@ -79,8 +80,11 @@ func Load(path string) (*Config, error) {
 	if cfg.Server.BootstrapToken == "" {
 		cfg.Server.BootstrapToken = cfg.Server.Token
 	}
-	if cfg.Server.BootstrapToken == "" {
-		return nil, fmt.Errorf("server.bootstrap_token is required")
+	if cfg.Server.PairingToken == "" {
+		cfg.Server.PairingToken = os.Getenv("AIOPS_PAIRING_TOKEN")
+	}
+	if cfg.Server.BootstrapToken == "" && cfg.Server.PairingToken == "" {
+		return nil, fmt.Errorf("server.bootstrap_token or server.pairing_token is required")
 	}
 	if cfg.Server.Host == "" {
 		cfg.Server.Host = cfg.Server.IP
@@ -96,6 +100,13 @@ func (c *Config) AllowedCommand(action string) bool {
 		}
 	}
 	return false
+}
+
+func (c *Config) GetEffectiveToken() string {
+	if c.Server.PairingToken != "" {
+		return c.Server.PairingToken
+	}
+	return c.Server.BootstrapToken
 }
 
 func (c *Config) TrustedServer(server string) bool {

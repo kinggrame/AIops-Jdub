@@ -1,4 +1,4 @@
-import { AlertOutlined, DashboardOutlined, DatabaseOutlined, MessageOutlined, RobotOutlined, SettingOutlined } from '@ant-design/icons'
+import { AlertOutlined, DashboardOutlined, DatabaseOutlined, MessageOutlined, RobotOutlined, SettingOutlined, ApiOutlined, CloudServerOutlined } from '@ant-design/icons'
 import { Button, Layout, Menu, Space, Tag, Typography } from 'antd'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store'
@@ -7,6 +7,8 @@ const { Header, Sider, Content } = Layout
 
 const items = [
   { key: '/', icon: <DashboardOutlined />, label: <Link to="/">态势总览</Link> },
+  { key: '/servers', icon: <CloudServerOutlined />, label: <Link to="/servers">服务器管理</Link> },
+  { key: '/connections', icon: <ApiOutlined />, label: <Link to="/connections">连接管理</Link> },
   { key: '/agents', icon: <RobotOutlined />, label: <Link to="/agents">客户端管理</Link> },
   { key: '/agent', icon: <MessageOutlined />, label: <Link to="/agent">Agent 对话</Link> },
   { key: '/alerts', icon: <AlertOutlined />, label: <Link to="/alerts">告警管理</Link> },

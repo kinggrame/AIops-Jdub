@@ -6,31 +6,25 @@ import com.aiops.api.dto.request.AgentRegisterRequest;
 import com.aiops.api.dto.request.AgentReportRequest;
 import com.aiops.api.dto.request.CommandResultRequest;
 import com.aiops.api.dto.response.AgentChatResponse;
-import com.aiops.common.exception.BusinessException;
 import com.aiops.common.model.ApiResponse;
 import com.aiops.connection.config.AgentTokenUtils;
 import com.aiops.connection.model.CommandResult;
 import com.aiops.connection.service.AgentRegistryService;
 import com.aiops.connection.service.CommandDispatchService;
+import com.aiops.connection.service.PairingTokenService;
 import com.aiops.core.service.AgentChatCommand;
 import com.aiops.core.service.AgentChatResult;
 import com.aiops.core.service.AgentReportCommand;
 import com.aiops.core.service.AgentReportFlowService;
 import com.aiops.core.service.AgentReportResult;
 import com.aiops.core.service.AgentService;
-import com.aiops.detection.entity.Alert;
-import com.aiops.detection.service.AlertService;
 import com.aiops.search.service.SearchService;
 import com.aiops.search.ingestion.LogIngestionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -41,26 +35,45 @@ public class AgentController {
 
     private final AgentRegistryService agentRegistryService;
     private final SearchService searchService;
-    private final AlertService alertService;
     private final AgentService agentService;
     private final CommandDispatchService commandDispatchService;
     private final AgentReportFlowService agentReportFlowService;
     private final LogIngestionService logIngestionService;
+    private final PairingTokenService pairingTokenService;
 
     public AgentController(AgentRegistryService agentRegistryService,
                            SearchService searchService,
-                           AlertService alertService,
                            AgentService agentService,
                            CommandDispatchService commandDispatchService,
                            AgentReportFlowService agentReportFlowService,
-                           LogIngestionService logIngestionService) {
+                           LogIngestionService logIngestionService,
+                           PairingTokenService pairingTokenService) {
         this.agentRegistryService = agentRegistryService;
         this.searchService = searchService;
-        this.alertService = alertService;
         this.agentService = agentService;
         this.commandDispatchService = commandDispatchService;
         this.agentReportFlowService = agentReportFlowService;
         this.logIngestionService = logIngestionService;
+        this.pairingTokenService = pairingTokenService;
+    }
+
+    @PostMapping("/pairing-token")
+    public ApiResponse<?> generatePairingToken(@RequestBody Map<String, Object> request) {
+        String hostname = (String) request.getOrDefault("hostname", "");
+        String ip = (String) request.getOrDefault("ip", "");
+        Integer ttlMinutes = (Integer) request.getOrDefault("ttlMinutes", 10);
+        
+        String token = pairingTokenService.generatePairingToken(
+                hostname, 
+                ip, 
+                Duration.ofMinutes(ttlMinutes != null ? ttlMinutes : 10)
+        );
+        
+        return ApiResponse.ok(Map.of(
+                "pairingToken", token,
+                "expiresInMinutes", ttlMinutes != null ? ttlMinutes : 10,
+                "note", "Use this token within the expiry time to register an agent"
+        ), "Pairing token generated");
     }
 
     @PostMapping("/register")
@@ -152,7 +165,7 @@ public class AgentController {
     private void authenticateAgent(String agentId, String authorization) {
         String token = AgentTokenUtils.extractBearerToken(authorization);
         if (agentRegistryService.authenticate(agentId, token).isEmpty()) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Invalid or missing agent authorization");
+            throw new com.aiops.common.exception.BusinessException(HttpStatus.UNAUTHORIZED, "Invalid or missing agent authorization");
         }
     }
 }

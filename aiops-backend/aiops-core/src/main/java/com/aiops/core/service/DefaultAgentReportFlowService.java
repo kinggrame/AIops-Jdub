@@ -1,8 +1,8 @@
 package com.aiops.core.service;
 
 import com.aiops.command.service.CommandService;
-import com.aiops.detection.entity.Alert;
-import com.aiops.detection.service.AlertService;
+import com.aiops.alert.model.Alert;
+import com.aiops.alert.service.AlertService;
 import com.aiops.search.service.SearchService;
 import org.springframework.stereotype.Service;
 

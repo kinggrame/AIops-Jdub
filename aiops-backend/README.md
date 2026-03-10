@@ -47,7 +47,8 @@ aiops-backend/
 在 `aiops-backend/` 目录执行：
 
 ```bash
-mvn spring-boot:run -pl aiops-web -am
+cd aiops-web
+mvn spring-boot:run
 ```
 
 默认端口：`8080`
@@ -233,7 +234,8 @@ mvn test
 
 ```bash
 cd aiops-backend
-mvn spring-boot:run -pl aiops-web -am
+cd aiops-web
+mvn spring-boot:run
 ```
 
 服务端提供：
