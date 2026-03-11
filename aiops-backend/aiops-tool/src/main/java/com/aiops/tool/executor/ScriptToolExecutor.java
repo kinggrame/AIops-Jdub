@@ -24,4 +24,7 @@ public class ScriptToolExecutor implements ToolExecutor {
 
     @Override
     public Tool.ToolType getType() { return Tool.ToolType.SCRIPT; }
+
+    @Override
+    public String getToolName() { return "execute_script"; }
 }

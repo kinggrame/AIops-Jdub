@@ -57,13 +57,15 @@ public class LlmController {
     public Map<String, Object> chat(@RequestBody Map<String, Object> request) {
         String message = (String) request.get("message");
         String providerId = (String) request.get("providerId");
-        return llmService.chat(message, providerId);
+        String response = llmService.chat(message, providerId);
+        return Map.of("message", response, "provider", providerId != null ? providerId : "default");
     }
 
     @PostMapping("/embed")
     public Map<String, Object> embed(@RequestBody Map<String, Object> request) {
         String text = (String) request.get("text");
         String providerId = (String) request.get("providerId");
-        return llmService.embed(text, providerId);
+        List<Double> embedding = llmService.embed(text, providerId);
+        return Map.of("embedding", embedding, "dimensions", embedding.size());
     }
 }

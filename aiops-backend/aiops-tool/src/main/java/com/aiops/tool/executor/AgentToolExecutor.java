@@ -31,4 +31,7 @@ public class AgentToolExecutor implements ToolExecutor {
 
     @Override
     public Tool.ToolType getType() { return Tool.ToolType.AGENT; }
+
+    @Override
+    public String getToolName() { return "agent_execute"; }
 }

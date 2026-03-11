@@ -32,4 +32,7 @@ public class NotifyToolExecutor implements ToolExecutor {
 
     @Override
     public Tool.ToolType getType() { return Tool.ToolType.NOTIFY; }
+
+    @Override
+    public String getToolName() { return "notify"; }
 }

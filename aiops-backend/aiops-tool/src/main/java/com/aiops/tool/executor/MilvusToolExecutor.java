@@ -25,4 +25,7 @@ public class MilvusToolExecutor implements ToolExecutor {
 
     @Override
     public Tool.ToolType getType() { return Tool.ToolType.MILVUS; }
+
+    @Override
+    public String getToolName() { return "milvus_search"; }
 }

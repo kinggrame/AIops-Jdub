@@ -1,7 +1,7 @@
 # Multi-Agent 系统
 
 > 模块：aiops-agent
-> 版本：V1.0
+> 版本：V2.0
 
 ---
 
@@ -9,7 +9,7 @@
 
 ### 1.1 设计目标
 
-本模块负责**AI Agent的编排和协调**，通过Multi-Agent协作实现智能运维。
+本模块负责**AI Agent的编排和协调**，通过Multi-Agent协作实现智能运维。基于LangGraph4j实现工作流编排。
 
 ### 1.2 架构图
 
@@ -19,7 +19,7 @@
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │   ┌─────────────────────────────────────────────────────────────┐   │
-│   │                    Multi-Agent 协作                         │   │
+│   │                    LangGraph4j 工作流                        │   │
 │   │                                                             │   │
 │   │   ┌───────────┐    ┌───────────┐    ┌───────────┐        │   │
 │   │   │  Planner  │───▶│ Analyzer  │───▶│ Executor  │        │   │
@@ -28,11 +28,23 @@
 │   │        │                  │                  │              │   │
 │   │        └──────────────────┼──────────────────┘              │   │
 │   │                           │                                   │   │
-│   └───────────────────────────┼───────────────────────────────────┘   │
+│   │                    ┌──────▼──────┐                         │   │
+│   │                    │Report Agent │                         │   │
+│   │                    └─────────────┘                         │   │
+│   └─────────────────────────────────────────────────────────────┘   │
 │                               │                                       │
 │   ┌───────────────────────────▼───────────────────────────────────┐   │
-│   │                    Tool Registry                               │   │
-│   │   Script Tool | ELK Tool | Milvus Tool | Agent Tool           │   │
+│   │                    Tool Execution Layer                         │   │
+│   │   ┌─────────────────────────────────────────────────────────┐  │   │
+│   │   │              ToolRegistryInitializer                   │  │   │
+│   │   │  (自动注册5个Tool)                                      │  │   │
+│   │   └─────────────────────────────────────────────────────────┘  │   │
+│   │   Script | ELK | Milvus | Agent | Notify                      │   │
+│   └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│   ┌───────────────────────────▼───────────────────────────────────┐   │
+│   │                    LLM Service Layer                          │   │
+│   │              (支持Ollama/OpenAI)                            │   │
 │   └───────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -40,89 +52,58 @@
 
 ---
 
-## 二、Agent 定义
+## 二、核心组件
 
-### 2.1 Agent 实体
+### 2.1 LangGraph4jWorkflowService
 
 ```java
-@Entity
-@Table(name = "ai_agents")
-public class AIAgent {
-    
-    @Id
-    private String id;               // "planner", "analyzer", "executor"
-    
-    private String name;             // "计划Agent"
-    private String description;      // "负责制定执行计划"
-    
-    @Enumerated(EnumType.STRING)
-    private AgentType type;           // PLANNER / ANALYZER / EXECUTOR / REPORT
-    
-    @Column(length = 5000)
-    private String systemPrompt;     // 系统提示词
-    
-    @ElementCollection
-    private List<String> availableTools;  // 可用Tool列表
-    
-    private Integer maxIterations;   // 最大迭代次数
-    private Integer timeout;         // 超时时间(秒)
-    
-    private Boolean enabled;
-    
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-}
+@Service
+public class LangGraph4jWorkflowService {
 
-public enum AgentType {
-    PLANNER,      // 计划Agent - 制定执行计划
-    ANALYZER,     // 分析Agent - 分析问题、生成脚本
-    EXECUTOR,     // 执行Agent - 执行运维动作
-    REPORT        // 报告Agent - 生成执行报告
+    // Agent接口定义（使用@AiServices自动实现）
+    public interface PlannerAgent {
+        @UserMessage("分析用户请求并制定执行计划: {{request}}")
+        String plan(String request);
+    }
+
+    public interface AnalyzerAgent {
+        @UserMessage("分析计划并识别潜在问题: {{plan}}")
+        String analyze(String plan);
+    }
+
+    public interface ExecutorAgent {
+        @UserMessage("执行分析并返回结果: {{analysis}}")
+        String execute(String analysis);
+    }
+
+    public interface ReportAgent {
+        @UserMessage("生成最终报告: {{execution}}")
+        String report(String execution);
+    }
+
+    // 执行工作流
+    public String execute(String sessionId, String userRequest);
 }
 ```
 
-### 2.2 Agent 消息
+### 2.2 AgentState
 
 ```java
-@Entity
-@Table(name = "agent_messages")
-public class AgentMessage {
-    
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
-    private String sessionId;         // 会话ID
-    
-    private String fromAgent;        // "planner"
-    private String toAgent;          // "analyzer"
-    
-    @Enumerated(EnumType.STRING)
-    private MessageType type;        // REQUEST / RESPONSE / TOOL_CALL / TOOL_RESULT
-    
-    @Column(length = 10000)
-    private String content;          // 消息内容
-    
-    @ElementCollection
-    private List<ToolCall> toolCalls; // Tool调用列表
-    
-    private Map<String, Object> metadata;
-    
-    private LocalDateTime timestamp;
-}
-
-public enum MessageType {
-    REQUEST,       // 请求
-    RESPONSE,      // 响应
-    TOOL_CALL,     // Tool调用
-    TOOL_RESULT,   // Tool结果
-    ERROR          // 错误
+public static class AgentState {
+    private String sessionId;
+    private String userRequest;
+    private String plan;
+    private String analysis;
+    private String execution;
+    private String finalReport;
+    private boolean completed = false;
+    private int iteration = 0;
 }
 ```
 
 ---
 
-## 三、Agent 职责
+## 三、Agent职责
 
 ### 3.1 Planner Agent
 
@@ -133,19 +114,13 @@ public enum MessageType {
 • 决定调用哪些Tool
 • 协调其他Agent
 
-系统提示词示例：
+系统提示词：
 你是一个运维计划Agent，负责分析用户请求并制定执行计划。
 你需要：
 1. 理解用户需求
 2. 分析需要执行的步骤
 3. 选择合适的Tool
 4. 生成执行计划
-
-可用的Tool：
-- elk_query: 查询日志
-- milvus_search: 搜索知识库
-- agent_metrics: 获取服务器指标
-- execute_script: 执行脚本
 ```
 
 ### 3.2 Analyzer Agent
@@ -155,22 +130,15 @@ public enum MessageType {
 • 分析监控数据、日志
 • 理解问题根因
 • 生成解决方案脚本
-• 调用ELK Tool读取日志
-• 调用Milvus Tool检索知识
+• 调用Tool检索信息
 
-系统提示词示例：
+系统提示词：
 你是一个运维分析Agent，负责分析问题并生成解决方案。
 你需要：
 1. 收集相关日志和指标
 2. 分析问题根因
 3. 生成修复脚本
 4. 评估解决方案
-
-分析流程：
-1. 使用elk_query查询相关日志
-2. 使用milvus_search检索类似问题的解决方案
-3. 使用agent_metrics获取当前指标
-4. 综合分析生成结论
 ```
 
 ### 3.3 Executor Agent
@@ -181,9 +149,8 @@ public enum MessageType {
 • 调用Script Tool执行脚本
 • 调用Agent Tool与目标服务器通信
 • 处理执行结果
-• 重试失败操作
 
-系统提示词示例：
+系统提示词：
 你是一个执行Agent，负责执行运维动作。
 你需要：
 1. 执行生成的脚本
@@ -200,7 +167,7 @@ public enum MessageType {
 • 生成执行报告
 • 通知用户
 
-系统提示词示例：
+系统提示词：
 你是一个报告Agent，负责生成执行报告。
 你需要：
 1. 收集执行结果
@@ -211,157 +178,198 @@ public enum MessageType {
 
 ---
 
-## 四、Agent 协作流程
+## 四、Tool系统
 
-### 4.1 完整流程
+### 4.1 已注册Tools
 
+系统启动时自动注册以下Tools：
+
+| Tool名称 | 类型 | 描述 |
+|----------|------|------|
+| execute_script | SCRIPT | 在目标服务器执行Shell脚本 |
+| elk_query | ELK | 查询Elasticsearch日志 |
+| milvus_search | MILVUS | 搜索知识库 |
+| agent_execute | AGENT | 在目标Agent上执行命令 |
+| notify | NOTIFY | 发送通知到指定渠道 |
+
+### 4.2 ToolRegistryInitializer
+
+```java
+@Component
+public class ToolRegistryInitializer {
+
+    @PostConstruct
+    public void registerTools() {
+        // 自动注册所有ToolExecutor实现
+        toolRegistry.register(executor.getToolName(), executor);
+    }
+}
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Multi-Agent 协作流程                               │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  用户请求: "网站访问慢，请排查"                                       │
-│       │                                                             │
-│       ▼                                                             │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    Planner Agent                              │  │
-│  │  思考: 需要分析CPU、内存、网络、Nginx日志                       │  │
-│  │  决定调用: agent_metrics, elk_query                            │  │
-│  │  生成计划:                                                     │  │
-│  │    1. 获取服务器指标                                           │  │
-│  │    2. 查询Nginx日志                                            │  │
-│  │    3. 分析问题                                                  │  │
-│  │    4. 执行修复                                                  │  │
-│  └────────────────────────────┬──────────────────────────────────┘  │
-│                               │                                      │
-│                               ▼                                      │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    Analyzer Agent                             │  │
-│  │  调用Tool: agent_metrics(server_id=1)                         │  │
-│  │  返回: {cpu: 95%, memory: 80%}                                 │  │
-│  │                                                               │  │
-│  │  调用Tool: elk_query(query="nginx error")                    │  │
-│  │  返回: {logs: [...]}                                          │  │
-│  │                                                               │  │
-│  │  分析结论:                                                     │  │
-│  │    根因: PHP-FPM进程阻塞导致Nginx响应慢                        │  │
-│  │    建议: 重启php-fpm服务                                       │  │
-│  │    脚本: systemctl restart php-fpm                            │  │
-│  └────────────────────────────┬──────────────────────────────────┘  │
-│                               │                                      │
-│                               ▼                                      │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    Executor Agent                             │  │
-│  │  调用Tool: execute_script(script="systemctl restart php-fpm")│  │
-│  │  返回: {output: "Service restarted", exit_code: 0}            │  │
-│  │                                                               │  │
-│  │  验证: 调用Tool: agent_metrics                                │  │
-│  │  返回: {cpu: 30%, memory: 45%}                                 │  │
-│  │                                                               │  │
-│  │  结论: 问题已解决                                              │  │
-│  └────────────────────────────┬──────────────────────────────────┘  │
-│                               │                                      │
-│                               ▼                                      │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    Report Agent                               │  │
-│  │  生成报告:                                                     │  │
-│  │    问题: 网站访问慢                                           │  │
-│  │    根因: PHP-FPM进程阻塞                                     │  │
-│  │    操作: 重启php-fpm服务                                      │  │
-│  │    结果: CPU从95%降至30%，问题已解决                          │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+
+### 4.3 ToolExecutor接口
+
+```java
+public interface ToolExecutor {
+    Object execute(Map<String, Object> params);
+    String getDefinition();
+    Tool.ToolType getType();
+    String getToolName();
+}
 ```
 
 ---
 
-## 五、服务实现
+## 五、协作流程
 
-### 5.1 Agent协调器
+### 5.1 完整流程
+
+```
+用户请求: "网站访问慢，请排查"
+      │
+      ▼
+┌─────────────────────────────────────┐
+│         Planner Agent               │
+│  思考: 需要分析CPU、内存、网络、日志   │
+│  生成执行计划                        │
+└─────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────┐
+│         Analyzer Agent               │
+│  调用Tool: elk_query               │
+│  调用Tool: agent_metrics           │
+│  分析结论: PHP-FPM进程阻塞          │
+└─────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────┐
+│         Executor Agent              │
+│  调用Tool: execute_script          │
+│  执行: systemctl restart php-fpm   │
+│  验证结果: CPU 95% → 30%           │
+└─────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────┐
+│         Report Agent                │
+│  生成执行报告                        │
+└─────────────────────────────────────┘
+```
+
+---
+
+## 六、API设计
+
+### 6.1 Agent管理 API
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | /api/agents | Agent列表 |
+| GET | /api/agents/enabled | 启用的Agent |
+| GET | /api/agents/{id} | Agent详情 |
+| PUT | /api/agents/{id} | 更新Agent |
+
+### 6.2 Agent对话 API
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| POST | /api/agents/chat | 发起对话 |
+| GET | /api/agents/chat/stream | SSE流式对话 |
+| GET | /api/agents/tools | 可用工具列表 |
+| GET | /api/agents/sessions/{id} | 会话历史 |
+
+---
+
+## 七、使用示例
+
+### 7.1 普通对话
+
+```bash
+curl -X POST http://localhost:8080/api/agents/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user001",
+    "message": "服务器CPU使用率很高怎么办？"
+  }'
+```
+
+### 7.2 SSE流式对话
+
+```javascript
+const response = await fetch(
+  'http://localhost:8080/api/agents/chat/stream?message=服务器出问题了&userId=user001'
+);
+const reader = response.body.getReader();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  console.log(new TextDecoder().decode(value));
+}
+```
+
+### 7.3 获取可用工具
+
+```bash
+curl http://localhost:8080/api/agents/tools
+```
+
+---
+
+## 八、集成说明
+
+### 8.1 LLM集成
+
+Agent系统通过LlmService调用LLM：
 
 ```java
 @Service
 public class AgentCoordinator {
+    private final LlmService llmService;
     
-    @Autowired
-    private LlmProvider llmProvider;
-    
-    @Autowired
-    private ToolRegistry toolRegistry;
-    
-    public AgentResponse coordinate(AgentRequest request) {
-        String sessionId = UUID.randomUUID().toString();
-        
-        // 1. Planner - 制定计划
-        AgentMessage planMsg = plannerAgent.execute(request.getMessage(), sessionId);
-        
-        // 2. Analyzer - 分析问题
-        List<ToolCall> toolCalls = planMsg.getToolCalls();
-        List<ToolResult> toolResults = executeTools(toolCalls);
-        
-        AgentMessage analysisMsg = analyzerAgent.executeWithResults(
-            planMsg.getContent(), toolResults, sessionId);
-        
-        // 3. Executor - 执行操作
-        if (analysisMsg.getToolCalls() != null) {
-            toolResults = executeTools(analysisMsg.getToolCalls());
-            executorAgent.executeWithResults(
-                analysisMsg.getContent(), toolResults, sessionId);
-        }
-        
-        // 4. Report - 生成报告
-        AgentMessage reportMsg = reportAgent.execute(sessionId);
-        
-        return AgentResponse.builder()
-            .sessionId(sessionId)
-            .report(reportMsg.getContent())
-            .build();
+    public String coordinate(String sessionId, String userRequest) {
+        return llmService.chat(userRequest, null);
     }
+}
+```
+
+### 8.2 Tool集成
+
+通过ToolExecutionService执行Tool：
+
+```java
+@Service
+public class ToolExecutionService {
+    private final ToolRegistry toolRegistry;
     
-    private List<ToolResult> executeTools(List<ToolCall> calls) {
-        return calls.stream()
-            .map(call -> toolRegistry.execute(call.getName(), call.getParams()))
-            .collect(Collectors.toList());
+    public Object execute(String toolName, Map<String, Object> params) {
+        return toolRegistry.execute(toolName, params);
     }
 }
 ```
 
 ---
 
-## 六、API 设计
+## 九、实施状态
 
-### 6.1 Agent管理 API
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | /api/v1/agents | Agent列表 |
-| GET | /api/v1/agents/{id} | Agent详情 |
-| PUT | /api/v1/agents/{id} | 更新Agent |
-| GET | /api/v1/agents/{id}/tools | Agent可用Tools |
-
-### 6.2 Agent对话 API
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| POST | /api/v1/agents/chat | 发起对话 |
-| GET | /api/v1/agents/sessions/{id} | 会话历史 |
+| 功能 | 状态 |
+|------|------|
+| AIAgent实体+管理 | ✅ 完成 |
+| LangGraph4j工作流 | ✅ 完成 |
+| LLM集成(Ollama) | ✅ 完成 |
+| Tool注册机制 | ✅ 完成 |
+| 5个Tool实现 | ✅ 完成 |
+| SSE流式输出 | ✅ 完成 |
+| 前端对话页面 | 🔄 待完善 |
 
 ---
 
-## 七、实施计划
+## 十、注意事项
 
-| 序号 | 工作内容 | 优先级 |
-|------|----------|--------|
-| 1 | AIAgent 实体 + 管理 | P1 |
-| 2 | AgentMessage 实体 | P1 |
-| 3 | Planner Agent 实现 | P1 |
-| 4 | Analyzer Agent 实现 | P1 |
-| 5 | Executor Agent 实现 | P1 |
-| 6 | Report Agent 实现 | P1 |
-| 7 | 前端Agent对话页面 | P2 |
+1. **Ollama需提前启动**：确保Ollama服务运行在 `http://localhost:11434`
+2. **模型需下载**：使用 `ollama pull llama3` 下载模型
+3. **Tool执行**：当前Tool为模拟实现，生产环境需接入真实服务
 
 ---
 
-> 模块版本：V1.0
-> 最后更新：2025-03-09
+> 模块版本：V2.0
+> 最后更新：2026-03-10

@@ -9,9 +9,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Configuration
 public class LlmConfig {
+
+    private final Map<String, ChatLanguageModel> chatModels = new ConcurrentHashMap<>();
+    private final Map<String, EmbeddingModel> embeddingModels = new ConcurrentHashMap<>();
+    private ChatLanguageModel defaultChatModel;
+    private EmbeddingModel defaultEmbeddingModel;
 
     @Bean
     @ConfigurationProperties(prefix = "llm.openai")
@@ -21,13 +28,15 @@ public class LlmConfig {
 
     @Bean
     public ChatLanguageModel chatLanguageModel(OpenAiProperties props) {
-        return OpenAiChatModel.builder()
+        ChatLanguageModel model = OpenAiChatModel.builder()
                 .apiKey(props.getApiKey())
                 .modelName(props.getModel())
                 .temperature(props.getTemperature())
                 .maxTokens(props.getMaxTokens())
                 .timeout(Duration.ofSeconds(props.getTimeout()))
                 .build();
+        defaultChatModel = model;
+        return model;
     }
 
     @Bean
@@ -41,7 +50,7 @@ public class LlmConfig {
     }
 
     public static class OpenAiProperties {
-        private String apiKey;
+        private String apiKey = "dummy-key";
         private String model = "gpt-4";
         private String embeddingModel = "text-embedding-3-small";
         private double temperature = 0.7;

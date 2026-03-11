@@ -25,4 +25,7 @@ public class ELKToolExecutor implements ToolExecutor {
 
     @Override
     public Tool.ToolType getType() { return Tool.ToolType.ELK; }
+
+    @Override
+    public String getToolName() { return "elk_query"; }
 }

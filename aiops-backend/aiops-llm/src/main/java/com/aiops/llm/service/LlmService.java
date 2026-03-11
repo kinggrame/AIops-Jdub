@@ -44,55 +44,47 @@ public class LlmService {
         return providers.isEmpty() ? null : providers.get(0);
     }
 
-    public Map<String, Object> chat(String message, String providerId) {
+    public String chat(String message, String providerId) {
         LlmProvider provider = providerId != null ? findProviderById(providerId) : getDefaultChatProvider();
         if (provider == null) {
-            throw new RuntimeException("No available chat provider");
+            return "No available chat provider. Please configure an LLM provider.";
         }
 
-        String response;
-        if (provider.getType() == LlmProvider.ProviderType.OLLAMA) {
-            ollamaClient.setBaseUrl(provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434");
-            response = ollamaClient.chat(provider.getDefaultModel(), message);
-        } else {
-            response = "Provider type " + provider.getType() + " not implemented yet";
+        try {
+            if (provider.getType() == LlmProvider.ProviderType.OLLAMA) {
+                String endpoint = provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434";
+                ollamaClient.setBaseUrl(endpoint);
+                return ollamaClient.chat(provider.getDefaultModel(), message);
+            } else {
+                return "Provider type " + provider.getType() + " not implemented. Use OLLAMA provider.";
+            }
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
         }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("message", response);
-        result.put("model", provider.getDefaultModel());
-        result.put("provider", provider.getName());
-        result.put("usage", Map.of("input_tokens", message.length() / 4, "output_tokens", response.length() / 4));
-        return result;
     }
 
-    public Map<String, Object> embed(String text, String providerId) {
+    public List<Double> embed(String text, String providerId) {
         LlmProvider provider = providerId != null ? findProviderById(providerId) : getDefaultEmbeddingProvider();
         if (provider == null) {
             throw new RuntimeException("No available embedding provider");
         }
 
-        List<Double> embedding;
-        if (provider.getType() == LlmProvider.ProviderType.OLLAMA) {
-            ollamaClient.setBaseUrl(provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434");
-            List<Float> floats = ollamaClient.embed(provider.getDefaultModel(), text);
-            embedding = new ArrayList<>();
-            for (Float f : floats) {
-                embedding.add(f.doubleValue());
+        try {
+            if (provider.getType() == LlmProvider.ProviderType.OLLAMA) {
+                String endpoint = provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434";
+                ollamaClient.setBaseUrl(endpoint);
+                List<Float> floats = ollamaClient.embed(provider.getDefaultModel(), text);
+                List<Double> result = new ArrayList<>();
+                for (Float f : floats) {
+                    result.add(f.doubleValue());
+                }
+                return result;
             }
-        } else {
-            embedding = new ArrayList<>();
-            for (int i = 0; i < provider.getDimensions(); i++) {
-                embedding.add(Math.random());
-            }
+        } catch (Exception e) {
+            throw new RuntimeException("Embedding error: " + e.getMessage());
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("embedding", embedding);
-        result.put("model", provider.getDefaultModel());
-        result.put("provider", provider.getName());
-        result.put("dimensions", provider.getDimensions());
-        return result;
+        throw new RuntimeException("Provider type not supported");
     }
 
     public boolean testConnection(String providerId) {
@@ -102,13 +94,12 @@ public class LlmService {
         }
 
         if (provider.getType() == LlmProvider.ProviderType.OLLAMA) {
-            ollamaClient.setBaseUrl(provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434");
+            String endpoint = provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434";
+            ollamaClient.setBaseUrl(endpoint);
             return ollamaClient.testConnection();
-        } else if (provider.getType() == LlmProvider.ProviderType.OPENAI) {
-            return provider.getApiKey() != null && !provider.getApiKey().isEmpty();
         }
 
-        return false;
+        return provider.getApiKey() != null && !provider.getApiKey().isEmpty();
     }
 
     public List<String> listModels(String providerId) {
@@ -118,7 +109,8 @@ public class LlmService {
         }
 
         if (provider.getType() == LlmProvider.ProviderType.OLLAMA) {
-            ollamaClient.setBaseUrl(provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434");
+            String endpoint = provider.getEndpoint() != null ? provider.getEndpoint() : "http://localhost:11434";
+            ollamaClient.setBaseUrl(endpoint);
             return ollamaClient.listModels();
         }
 
@@ -127,9 +119,7 @@ public class LlmService {
 
     public void initializeDefaultProviders() {
         if (providerRepository.count() == 0) {
-            createDefaultProvider("openai-chat", "OpenAI Chat", LlmProvider.ProviderType.OPENAI, 
-                LlmProvider.ModelType.CHAT, "gpt-4", 0.7, 2000);
-            createDefaultProvider("ollama-chat", "Ollama Local", LlmProvider.ProviderType.OLLAMA, 
+            createDefaultProvider("ollama-local", "Ollama Local", LlmProvider.ProviderType.OLLAMA, 
                 LlmProvider.ModelType.CHAT, "llama3", 0.7, 2000);
         }
     }
