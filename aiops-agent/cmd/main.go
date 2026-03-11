@@ -34,9 +34,9 @@ func main() {
 
 	auth, err := security.LoadAuthorization()
 	if err != nil {
-		log.Printf("load authorization file failed, fallback to bootstrap token: %v", err)
+		log.Printf("load authorization file failed, fallback to config token: %v", err)
 	}
-	runtimeToken := cfg.Server.BootstrapToken
+	runtimeToken := cfg.GetEffectiveToken()
 	agentID := ""
 	if auth != nil && auth.ServerURL == cfg.Server.URL && auth.Token != "" {
 		runtimeToken = auth.Token

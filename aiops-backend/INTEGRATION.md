@@ -13,7 +13,8 @@
 
 ```bash
 cd aiops-backend
-mvn spring-boot:run -pl aiops-web -am
+cd aiops-web
+mvn spring-boot:run
 ```
 
 如需临时开启内网穿透，可显式设置：
@@ -22,7 +23,8 @@ mvn spring-boot:run -pl aiops-web -am
 set AIOPS_TUNNEL_ENABLED=true
 set AIOPS_TUNNEL_COMMAND=cloudflared
 set AIOPS_TUNNEL_ARGUMENTS=tunnel --url http://127.0.0.1:8080
-mvn spring-boot:run -pl aiops-web -am
+cd aiops-web
+mvn spring-boot:run
 ```
 
 注意：

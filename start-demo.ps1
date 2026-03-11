@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Write-Host 'Starting AIOps backend...' -ForegroundColor Cyan
-Start-Process powershell -ArgumentList '-NoExit', '-Command', "Set-Location '$root\aiops-backend'; mvn spring-boot:run -pl aiops-web -am"
+Start-Process powershell -ArgumentList '-NoExit', '-Command', "Set-Location '$root\aiops-backend'; mvn -pl aiops-web -am -DskipTests package; java -jar 'aiops-web\target\aiops-web-1.0.0-SNAPSHOT.jar'"
 
 Write-Host 'Starting AIOps frontend...' -ForegroundColor Cyan
 Start-Process powershell -ArgumentList '-NoExit', '-Command', "Set-Location '$root\aiops-frontend'; npm run dev"

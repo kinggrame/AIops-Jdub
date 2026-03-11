@@ -1,6 +1,7 @@
 server:
   url: "${AIOPS_SERVER_URL:http://localhost:8080}"
   bootstrap_token: "${AIOPS_BOOTSTRAP_TOKEN}"
+  pairing_token: "${AIOPS_PAIRING_TOKEN}"
   host: "server-001"
   ip: "127.0.0.1"
   trusted_servers:

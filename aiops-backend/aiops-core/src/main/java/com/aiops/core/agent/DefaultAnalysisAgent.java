@@ -1,8 +1,8 @@
 package com.aiops.core.agent;
 
 import com.aiops.command.service.CommandService;
-import com.aiops.detection.entity.Alert;
-import com.aiops.detection.service.AlertService;
+import com.aiops.alert.model.Alert;
+import com.aiops.alert.service.AlertService;
 import com.aiops.rag.entity.KnowledgeDocument;
 import com.aiops.rag.service.KnowledgeService;
 import com.aiops.search.service.SearchService;

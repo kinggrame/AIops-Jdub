@@ -22,7 +22,7 @@ export default function DashboardPage() {
 
   const chartData = ['critical', 'warning', 'open', 'resolved'].map((item) => ({
     type: item,
-    value: alertList.filter((alert) => alert.severity === item || alert.status === item).length,
+    value: (alertList as any[]).filter((alert: any) => alert.severity === item || alert.status === item).length,
   }))
 
   return (

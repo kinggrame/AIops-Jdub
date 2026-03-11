@@ -10,7 +10,11 @@ export default function AlertsPage() {
   const { message } = App.useApp()
   const queryClient = useQueryClient()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const { data: alerts = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ['alerts'], queryFn: fetchAlerts })
+  const { data: alerts = [], isLoading, isError, error, refetch } = useQuery({ 
+    queryKey: ['alerts'], 
+    queryFn: () => fetchAlerts() as any,
+    initialData: [] 
+  })
   const mutation = useMutation({
     mutationFn: createAlert,
     onSuccess: () => {

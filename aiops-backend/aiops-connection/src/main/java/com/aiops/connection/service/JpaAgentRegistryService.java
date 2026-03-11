@@ -27,13 +27,16 @@ public class JpaAgentRegistryService implements AgentRegistryService {
     private final AgentTokenProperties tokenProperties;
     private final AgentRepository agentRepository;
     private final ObjectMapper objectMapper;
+    private final PairingTokenService pairingTokenService;
 
     public JpaAgentRegistryService(AgentTokenProperties tokenProperties, 
                                    AgentRepository agentRepository,
-                                   ObjectMapper objectMapper) {
+                                   ObjectMapper objectMapper,
+                                   PairingTokenService pairingTokenService) {
         this.tokenProperties = tokenProperties;
         this.agentRepository = agentRepository;
         this.objectMapper = objectMapper;
+        this.pairingTokenService = pairingTokenService;
     }
 
     @Override
@@ -41,9 +44,16 @@ public class JpaAgentRegistryService implements AgentRegistryService {
         String agentId = UUID.nameUUIDFromBytes((hostname + ip).getBytes()).toString();
         Instant now = Instant.now();
 
+        boolean isValidPairingToken = pairingTokenService.validateAndConsumeToken(token, hostname, ip);
+        boolean isBootstrap = isBootstrapToken(token);
+        
+        if (!isValidPairingToken && !isBootstrap) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Invalid pairing token or bootstrap token");
+        }
+
         AgentEntity entity = agentRepository.findById(agentId).orElse(null);
         if (entity != null) {
-            if (!matchesStoredToken(entity, token) && !isBootstrapToken(token)) {
+            if (!matchesStoredToken(entity, token) && !isBootstrap) {
                 throw new BusinessException(HttpStatus.UNAUTHORIZED, "Invalid agent token");
             }
             if (entity.getToken() == null || entity.getToken().isBlank()) {
@@ -54,7 +64,6 @@ public class JpaAgentRegistryService implements AgentRegistryService {
             entity.setCapabilities(capabilities);
             entity.setLastSeen(now);
         } else {
-            validateBootstrapToken(token);
             entity = new AgentEntity(
                     agentId,
                     hostname,
